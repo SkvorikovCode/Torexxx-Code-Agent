@@ -1,0 +1,24 @@
+template:
+  name: api_backend
+  description: "Создание RESTful или GraphQL API с валидацией, логированием и чистой архитектурой."
+  stack:
+    - fastapi
+    - pydantic
+    - sqlalchemy
+    - alembic
+    - uvicorn
+  structure:
+    - "app/main.py — точка входа"
+    - "app/api/routes/ — эндпоинты"
+    - "app/models/ — ORM модели"
+    - "app/schemas/ — Pydantic схемы"
+    - "app/core/config.py — конфигурация"
+  rules:
+    - "Код должен быть типизирован"
+    - "Использовать зависимость от конфигурации через Pydantic Settings"
+    - "Реализовать error-handling middleware"
+  style:
+    - "Минимум внешних зависимостей"
+    - "Писать читаемый и тестируемый код"
+  example_prompt: |
+    Создай API для управления задачами с CRUD и аутентификацией по токену.

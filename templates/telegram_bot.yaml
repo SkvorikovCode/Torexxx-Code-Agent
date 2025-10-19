@@ -1,0 +1,21 @@
+template:
+  name: telegram_bot
+  description: "Создание Telegram-ботов с командами, обработчиками и состояниями."
+  stack:
+    - aiogram
+    - python-dotenv
+    - sqlite3
+  structure:
+    - "bot/main.py — запуск бота"
+    - "bot/handlers/ — обработчики сообщений и команд"
+    - "bot/keyboards/ — inline и reply клавиатуры"
+    - "bot/database/ — работа с базой"
+  rules:
+    - "Использовать FSM для сложных сценариев"
+    - "Хранить токен в .env"
+    - "Разделять обработчики по темам (help, start, admin)"
+  style:
+    - "Минималистичные ответы"
+    - "Понятные имена команд"
+  example_prompt: |
+    Создай Telegram-бота, который сохраняет заметки и позволяет их просматривать.

@@ -1,0 +1,19 @@
+template:
+  name: cli_tool
+  description: "Создание CLI-инструментов с аргументами, командами и конфигурацией."
+  stack:
+    - python
+    - typer
+    - rich
+  structure:
+    - "main.py — точка входа с Typer"
+    - "commands/ — подкоманды"
+    - "config.json или .yaml — настройки"
+  rules:
+    - "Выводить цветной текст через rich"
+    - "Добавить --help и --version"
+    - "Логировать действия"
+  style:
+    - "Интерфейс как у git или docker"
+  example_prompt: |
+    Создай CLI, который управляет задачами (добавить, удалить, показать список).

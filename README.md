@@ -1,10 +1,12 @@
 # Torexxx Agent (CLI)
 
-Красивый CLI агент в стиле "Claude Code", который:
+Красивый CLI‑агент в стиле "Claude Code", который:
 - принимает задачу на написание кода;
 - нормализует промт через OpenRouter;
-- генерирует код через модели OpenRouter;
-- сохраняет артефакты и файлы в `Torexxx-Agent/projects/*`.
+- генерирует проект по строгому FILE‑формату;
+- поддерживает пулы моделей и последовательные фолбэки;
+- печатает стрим‑ответ (с авто‑фолбэком на нестрим);
+- сохраняет артефакты в `Torexxx-Agent/projects/*`.
 
 ## Требования
 - Node.js >= 18
@@ -18,31 +20,31 @@ npm install
 node ./bin/torexxx-agent.js new
 ```
 
-По умолчанию ввод — простой `input` в терминале. Для многострочного ТЗ используйте флаг `--editor`:
+По умолчанию ввод — простой `input` в терминале. Для многострочного ТЗ используйте `--editor`:
 
 ```bash
 node ./bin/torexxx-agent.js new --editor
 ```
 
-Или сразу передать задачу без интерактива:
+Либо передайте задачу сразу:
 
 ```bash
-node ./bin/torexxx-agent.js new --prompt "Сделай веб-сервер на Node.js с кнопкой и счётом кликов"
+node ./bin/torexxx-agent.js new --prompt "Сделай веб‑сервер на Node.js с кнопкой и счётом кликов"
 ```
 
-Приоритет источников настроек: флаги CLI > переменные окружения.
+Приоритет настроек: флаги CLI > переменные окружения.
 
-### Использование .env
-CLI автоматически загружает переменные из файлов `.env` и `.env.local` в корне проекта (значения из `.env.local` перекрывают `.env`). Пример: скопируйте `.env.example` в `.env` и заполните значения.
+## Использование .env
+CLI автоматически загружает переменные из `.env` и `.env.local` в корне проекта (значения из `.env.local` перекрывают `.env`). Скопируйте `.env.example` в `.env` и заполните ключ.
 
-Использование с OpenRouter:
+Примеры запуска с OpenRouter:
 
 ```bash
-# Вариант 1: через .env
+# Через .env
 # OPENROUTER_API_KEY=...
 node ./bin/torexxx-agent.js new
 
-# Вариант 2: экспорт в shell
+# Через экспорт в shell + одиночные модели
 export OPENROUTER_API_KEY=your_api_key_here
 node ./bin/torexxx-agent.js new \
   --model-refine qwen/qwen3-coder:free \
@@ -54,45 +56,54 @@ node ./bin/torexxx-agent.js new \
   --models-codegen "qwen/qwen3-coder:free,mistralai/mistral-small:free"
 ```
 
-Переменные окружения:
-- `OPENROUTER_API_KEY` — ключ OpenRouter
-- `OPENROUTER_EMBEDDED_KEY` — встроенный ключ для закрытой сборки (альтернатива переменной `OPENROUTER_API_KEY`)
-- `OPENROUTER_BASE_URL` — базовый URL для OpenRouter API (по умолчанию `https://openrouter.ai/api/v1`)
-- `OPENROUTER_REFERER` — HTTP Referer (рекомендовано)
-- `OPENROUTER_TITLE` — заголовок приложения (рекомендовано)
-- `OR_MODEL_REFINE` / `OR_MODEL_CODEGEN` — переопределить модели для OpenRouter
-- `OR_MODEL_REFINE_FALLBACK` — запасная модель для нормализации промта (используется при 429/403)
-- `OR_MODEL_CODEGEN_FALLBACK` — запасная модель для кодогенерации (OpenRouter)
-- `OR_MODELS_REFINE` — пул моделей для нормализации (через запятую; первая — основная)
-- `OR_MODELS_CODEGEN` — пул моделей для генерации кода (через запятую; первая — основная)
-- `OPENROUTER_RETRY_MS` — задержка перед повтором при 429 (мс, по умолчанию 2000)
+### Переменные окружения
+- `OPENROUTER_API_KEY` — ключ OpenRouter (обязателен).
+- `OPENROUTER_EMBEDDED_KEY` — встроенный ключ для закрытых сборок (альтернатива, используется если `OPENROUTER_API_KEY` пуст).
+- `OPENROUTER_BASE_URL` — базовый URL OpenRouter (по умолчанию `https://openrouter.ai/api/v1`).
+- `OPENROUTER_REFERER` — HTTP Referer (рекомендовано).
+- `OPENROUTER_TITLE` — заголовок приложения (рекомендовано).
+- `OR_MODEL_REFINE` / `OR_MODEL_CODEGEN` — одиночные модели.
+- `OR_MODEL_REFINE_FALLBACK` — фолбэк для нормализации.
+- `OR_MODEL_CODEGEN_FALLBACK` — фолбэк для кодогенерации.
+- `OR_MODELS_REFINE` — пул моделей для нормализации (первая — основная).
+- `OR_MODELS_CODEGEN` — пул моделей для кодогенерации (первая — основная).
+- `OPENROUTER_MODEL_FALLBACK` — общий фолбэк на случай недоступности (добавляется в конец пулов).
+- `OPENROUTER_RETRY_MS` — задержка перед повтором при 429 (мс, по умолчанию `2000`).
 
-## Лимиты и фолбэк моделей
-- Агент поддерживает пользовательский пул моделей. Если основная модель падает по любой причине (429, 403, несовместимость формата и т.п.), запускается следующая модель из списка.
-- При `429` от OpenRouter ("rate-limited upstream") агент может сделать повтор через `OPENROUTER_RETRY_MS`, а затем переключиться на следующую модель из пула (или `OR_MODEL_CODEGEN_FALLBACK`).
-- При `403` ("Access Forbidden" / "not available in your region") агент автоматически пробует безопасную альтернативу из пула, например `qwen/qwen3-coder:free`.
-- Некоторые модели не принимают `response_format`. Агент автоматически повторяет запрос без этого поля, чтобы сохранить совместимость.
-- Для повышения лимитов рекомендуется указать собственный `OPENROUTER_API_KEY`.
-- Для строгого JSON лучше использовать модели вроде `qwen/qwen3-coder:free`/совместимые.
+Примечание: если задан `OR_MODELS_*`, он имеет приоритет над одиночными `OR_MODEL_*`. Одиночные переменные можно оставить для читаемости (совпадают с первой моделью в пуле) или убрать.
 
-## Установка как полноценного CLI (macOS/Windows)
-- Глобальная установка локально (dev):
-  - Выполните `npm run link` в корне проекта.
-  - Запускайте команду `torexxx-agent new` из любой директории.
-- Глобальная установка из пакета (после публикации):
-  - `npm i -g torexxx-agent`
-  - или одноразово: `npx torexxx-agent new`
-- Сборка самодостаточных бинарников:
-  - macOS: `npm run build:mac` → файлы в `dist/` (`torexxx-agent-x64`, `torexxx-agent-arm64`)
-  - Windows: `npm run build:win` → `dist/torexxx-agent.exe`
-  - Все сразу: `npm run build:all`
+## Лимиты и фолбэки моделей
+- Последовательный пул: если основная модель падает по любой причине (429, 403, несовместимость формата, сетевые ошибки), автоматически пробуем следующую из списка.
+- 429 (rate limit): возможен повтор после `OPENROUTER_RETRY_MS`, затем переход к следующей модели/фолбэку.
+- 403 (region‑restricted): автоматический фолбэк к безопасной альтернативе (например, `qwen/qwen3-coder:free`).
+- response_format: некоторые модели (например, Meta Llama) отвергают `response_format`. Запрос повторяется без него.
+- Стрим‑фолбэк: если стриминг SSE даёт ошибку, агент автоматически повторит запрос той же модели без стрима.
+- Диагностика: при полной неудаче выводится сводка причин по всем попыткам.
+
+## Рекомендованные бесплатные модели
+- Базовая пара: `qwen/qwen3-coder:free` (основная) + `mistralai/mistral-small:free` (фолбэк).
+- Полный список и рекомендации см. в `free-models.md`.
+
+Настройка пулов через `.env`:
+
+```env
+OR_MODELS_REFINE=qwen/qwen3-coder:free,mistralai/mistral-small:free
+OR_MODELS_CODEGEN=qwen/qwen3-coder:free,mistralai/mistral-small:free
+OR_MODEL_REFINE=qwen/qwen3-coder:free
+OR_MODEL_CODEGEN=qwen/qwen3-coder:free
+OR_MODEL_REFINE_FALLBACK=mistralai/mistral-small:free
+OR_MODEL_CODEGEN_FALLBACK=mistralai/mistral-small:free
+OPENROUTER_RETRY_MS=2000
+```
 
 ## Что сохраняется
-- `prompt.original.txt` — исходная формулировка задачи
-- `prompt.refined.json` — очищенный ТЗ (бриф)
-- `generation.raw.md` — полный потоковый ответ модели
-- Сгенерированные файлы проекта по блокам `<<<FILE: ...>>>`
-- `meta.json` — метаданные о генерации
+- `prompt.original.txt` — исходная формулировка задачи.
+- `prompt.refined.json` — очищенный бриф/ТЗ.
+- `generation.raw.md` — полный потоковый ответ модели.
+- Сгенерированные файлы проекта по блокам `<<<FILE: ...>>>`.
+- `meta.json` — метаданные о генерации.
+
+Пути сохраняются в `Torexxx-Agent/projects/<timestamp>-<slug>`.
 
 ## Формат ответа модели
 Агент ожидает строгий формат для каждого файла:
@@ -105,7 +116,35 @@ node ./bin/torexxx-agent.js new \
 <<<END FILE>>>
 ```
 
+Требования:
+- никаких префиксов/пояснений вне FILE‑блоков;
+- каждый файл строго внутри тройных бэктиков;
+- допустимы заголовки `<<<FILE: ...>>>` и `<<<FILE: ...>>` (оба распознаются);
+- добавляйте `README.md` с инструкциями, при необходимости `package.json`/`requirements.txt`.
+
+## Запуск сгенерированного проекта
+- Откройте сохранённую папку проекта и следуйте инструкциям в `README.md` внутри.
+- Для Node.js проектов обычно:
+
+```bash
+cd Torexxx-Agent/projects/<timestamp>-<slug>
+npm install
+npm run dev # или node index.js
+```
+
+## Установка как полноценного CLI
+- Dev‑линковка:
+  - `npm run link` в корне проекта.
+  - Запуск: `torexxx-agent new` из любой директории.
+- Публикация (после выхода пакета):
+  - `npm i -g torexxx-agent` или `npx torexxx-agent new`.
+- Сборка бинарников:
+  - macOS: `npm run build:mac` → `dist/torexxx-agent-x64`, `dist/torexxx-agent-arm64`.
+  - Windows: `npm run build:win` → `dist/torexxx-agent.exe`.
+  - Все сразу: `npm run build:all`.
+
 ## Примечания
 - Для OpenRouter требуется валидный ключ: установите `OPENROUTER_API_KEY` или используйте `OPENROUTER_EMBEDDED_KEY`.
-- Модели задавайте флагами `--model-refine` и `--model-codegen`, либо пулом `--models-refine` / `--models-codegen` (или через переменные окружения).
-- Весь UX выполнен в терминальном стиле с анимациями (спиннеры, градиенты, стриминг токенов).
+- Пулы моделей лучше всего начинать с надёжной пары: `qwen/qwen3-coder:free` → `mistralai/mistral-small:free`.
+- В терминале есть стриминг токенов и уведомления о старте новых файлов в потоке.
+- При ошибках смотрите `generation.raw.md` и список причин в сообщении об ошибке (агент собирает их по всем попыткам).
