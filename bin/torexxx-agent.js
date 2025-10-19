@@ -9,7 +9,6 @@ import { renderHeader, stageUpdate } from '../src/ui.js';
 import { refinePrompt } from '../src/refine.js';
 import { generateCode } from '../src/codegen.js';
 import { saveProjectArtifacts } from '../src/save.js';
-// import { loadConfig, saveConfig } from '../src/config.js';
 import dotenv from 'dotenv';
 import path from 'path';
 

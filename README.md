@@ -60,7 +60,8 @@ node ./bin/torexxx-agent.js new \
 - `OPENROUTER_RETRY_MS` — задержка перед повтором при 429 (мс, по умолчанию 2000)
 
 ## Лимиты и фолбэк моделей
-- При `429` от OpenRouter ("rate-limited upstream") агент сначала делает повтор через `OPENROUTER_RETRY_MS`, затем переключается на `OR_MODEL_CODEGEN_FALLBACK` (если задано) или на `meta-llama/llama-3.1-8b-instruct:free` по умолчанию.
+- При `429` от OpenRouter ("rate-limited upstream") агент сначала делает повтор через `OPENROUTER_RETRY_MS`, затем переключается на `OR_MODEL_CODEGEN_FALLBACK` (если задано) или на `qwen/qwen3-coder:free` по умолчанию.
+- При `403` ("Access Forbidden" / "not available in your region") агент автоматически пробует безопасную альтернативу: `qwen/qwen3-coder:free`.
 - Некоторые модели не принимают `response_format`. Агент автоматически повторяет запрос без этого поля, чтобы сохранить совместимость.
 - Для повышения лимитов рекомендуется указать собственный `OPENROUTER_API_KEY`.
 - Для строгого JSON лучше использовать модели вроде `qwen/qwen3-coder:free`/совместимые.

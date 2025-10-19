@@ -83,6 +83,14 @@ export async function generateCode(spec, { apiKey, modelCodegen, onToken, onFile
   } catch (e) {
     const msg = String(e?.message || e);
     const isRateLimited = msg.includes('OpenRouter chat error 429') && /rate-limited upstream/i.test(msg);
+    const isRegionForbidden = msg.includes('OpenRouter chat error 403') && (/not available in your region/i.test(msg) || /Access Forbidden/i.test(msg));
+    if (isRegionForbidden) {
+      const fallback = fallbackModelEnv || 'qwen/qwen3-coder:free';
+      if (fallback && fallback !== primaryModel) {
+        return await runOnce(fallback);
+      }
+      throw e;
+    }
     if (!isRateLimited) {
       throw e;
     }
@@ -96,7 +104,7 @@ export async function generateCode(spec, { apiKey, modelCodegen, onToken, onFile
         const still429 = msg2.includes('OpenRouter chat error 429');
         if (!still429) throw e2;
         // Fallback model
-        const fallback = fallbackModelEnv || 'meta-llama/llama-3.1-8b-instruct:free';
+        const fallback = fallbackModelEnv || 'qwen/qwen3-coder:free';
         if (fallback && fallback !== primaryModel) {
           return await runOnce(fallback);
         }
@@ -104,7 +112,7 @@ export async function generateCode(spec, { apiKey, modelCodegen, onToken, onFile
       }
     }
     // If no retry configured, attempt direct fallback
-    const fallback = fallbackModelEnv || 'meta-llama/llama-3.1-8b-instruct:free';
+    const fallback = fallbackModelEnv || 'qwen/qwen3-coder:free';
     if (fallback && fallback !== primaryModel) {
       return await runOnce(fallback);
     }

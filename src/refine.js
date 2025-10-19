@@ -15,17 +15,43 @@ export async function refinePrompt(originalTask, { apiKey, modelRefine } = {}) {
 
   const model = modelRefine || (process.env.OR_MODEL_REFINE || 'qwen/qwen3-coder:free');
 
-  const { content } = await openrouterChat({
-    model,
-    messages: [
-      { role: 'system', content: system },
-      { role: 'user', content: originalTask }
-    ],
-    stream: false,
-    format: 'json',
-    options: { temperature: 0.2 },
-    apiKey,
-  });
+  let content;
+  try {
+    ({ content } = await openrouterChat({
+      model,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: originalTask }
+      ],
+      stream: false,
+      format: 'json',
+      options: { temperature: 0.2 },
+      apiKey,
+    }));
+  } catch (e) {
+    const msg = String(e?.message || e);
+    const isRegionForbidden = msg.includes('OpenRouter chat error 403') && (/not available in your region/i.test(msg) || /Access Forbidden/i.test(msg));
+    if (isRegionForbidden) {
+      const fallback = 'qwen/qwen3-coder:free';
+      if (fallback !== model) {
+        ({ content } = await openrouterChat({
+          model: fallback,
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: originalTask }
+          ],
+          stream: false,
+          format: 'json',
+          options: { temperature: 0.2 },
+          apiKey,
+        }));
+      } else {
+        throw e;
+      }
+    } else {
+      throw e;
+    }
+  }
 
   let spec;
   try {
