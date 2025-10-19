@@ -2,20 +2,20 @@ template:
   name: react_component_lib
   description: "Создание библиотеки React-компонентов с переиспользуемыми элементами UI."
   stack:
-    - react
-    - typescript
-    - tailwindcss
-    - storybook
+  - react
+  - typescript
+  - tailwindcss
+  - storybook
   structure:
-    - "src/components/ — компоненты"
-    - "stories/ — Storybook примеры"
-    - "index.ts — экспорт всех компонентов"
+  - "src/components/ — компоненты"
+  - "stories/ — Storybook примеры"
+  - "index.ts — экспорт всех компонентов"
   rules:
-    - "Компоненты должны быть типизированы (Props, FC)"
-    - "Каждый компонент — изолированный и тестируемый"
-    - "Добавить Storybook stories"
+  - "Компоненты должны быть типизированы (Props, FC)"
+  - "Каждый компонент — изолированный и тестируемый"
+  - "Добавить Storybook stories"
   style:
-    - "Следовать принципам Atomic Design"
-    - "Использовать единый цветовой токен из tailwind.config"
+  - "Следовать принципам Atomic Design"
+  - "Использовать единый цветовой токен из tailwind.config"
   example_prompt: |
     Создай React-компонентную библиотеку с кнопками, инпутами и карточками.

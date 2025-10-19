@@ -33,6 +33,29 @@ export async function loadTemplates(namesOrPaths = []) {
   return results;
 }
 
+// List available templates in ./templates with name/description
+export async function listAvailableTemplates() {
+  const cwd = process.cwd();
+  const templatesDir = path.resolve(cwd, 'templates');
+  const out = [];
+  try {
+    const files = await fs.readdir(templatesDir);
+    for (const f of files) {
+      if (!/\.ya?ml$/i.test(f)) continue;
+      const filePath = path.join(templatesDir, f);
+      try {
+        const content = await fs.readFile(filePath, 'utf-8');
+        const parsed = yaml.load(content);
+        const t = parsed?.template || parsed;
+        const name = t?.name || f.replace(/\.ya?ml$/i, '');
+        const description = String(t?.description || '').trim();
+        out.push({ name, description, filePath });
+      } catch {}
+    }
+  } catch {}
+  return out;
+}
+
 // Merge loaded templates into spec: rules/style/stack -> constraints; structure -> files; description -> overview append
 export function applyTemplatesToSpec(spec, loadedTemplates = []) {
   const out = { ...spec };
@@ -78,4 +101,27 @@ export function applyTemplatesToSpec(spec, loadedTemplates = []) {
   }
 
   return out;
+}
+
+// Log missing template suggestions to Torexxx-Agent/templates/requests.jsonl
+export async function logMissingTemplate(name, spec, originalTask) {
+  const cwd = process.cwd();
+  const dir = path.resolve(cwd, 'Torexxx-Agent/templates');
+  await fs.ensureDir(dir);
+  const filePath = path.join(dir, 'requests.jsonl');
+  const entry = {
+    timestamp: new Date().toISOString(),
+    name: String(name || '').trim(),
+    title: spec?.title,
+    overview: spec?.overview,
+    requirements: spec?.requirements || [],
+    constraints: spec?.constraints || [],
+    files: spec?.files || [],
+    deliverables: spec?.deliverables || [],
+    tests: spec?.tests || [],
+    originalTask: String(originalTask || ''),
+  };
+  try {
+    await fs.appendFile(filePath, JSON.stringify(entry) + '\n');
+  } catch {}
 }

@@ -2,20 +2,20 @@ template:
   name: web_landing
   description: "Создание адаптивных лендингов с современным стеком (Next.js, TailwindCSS, Framer Motion, shadcn/ui)."
   stack:
-    - next.js
-    - tailwindcss
-    - framer-motion
-    - shadcn/ui
+  - next.js
+  - tailwindcss
+  - framer-motion
+  - shadcn/ui
   structure:
-    - "src/app/layout.tsx — общая структура страницы"
-    - "src/components/ — переиспользуемые UI-компоненты"
-    - "Главная страница: hero, features, pricing, call-to-action, footer"
+  - "src/app/layout.tsx — общая структура страницы"
+  - "src/components/ — переиспользуемые UI-компоненты"
+  - "Главная страница: hero, features, pricing, call-to-action, footer"
   rules:
-    - "Использовать семантическую верстку (section, header, footer)"
-    - "Добавлять анимации при появлении блоков через Framer Motion"
-    - "Оформление в минималистичном стиле: закругления, мягкие тени, аккуратные отступы"
+  - "Использовать семантическую верстку (section, header, footer)"
+  - "Добавлять анимации при появлении блоков через Framer Motion"
+  - "Оформление в минималистичном стиле: закругления, мягкие тени, аккуратные отступы"
   style:
-    - "Фон — светлый, акценты — брендовый цвет"
-    - "Адаптивность для мобильных устройств"
+  - "Фон — светлый, акценты — брендовый цвет"
+  - "Адаптивность для мобильных устройств"
   example_prompt: |
     Создай лендинг для приложения по отслеживанию привычек.

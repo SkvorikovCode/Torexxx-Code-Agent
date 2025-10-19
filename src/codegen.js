@@ -1,5 +1,13 @@
 import { chat as openrouterChat } from './openrouter.js';
 
+export function asArray(v) {
+  if (v == null) return [];
+  if (Array.isArray(v)) return v;
+  if (typeof v === 'string') return [v];
+  if (typeof v === 'object') return [v];
+  return [String(v)];
+}
+
 export async function generateCode(spec, { apiKey, modelCodegen, modelsCodegen, onToken, onFileStart } = {}) {
   const primary = modelCodegen || (process.env.OR_MODEL_CODEGEN || 'qwen/qwen3-coder:free');
   const listEnv = (process.env.OR_MODELS_CODEGEN || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -32,22 +40,15 @@ export async function generateCode(spec, { apiKey, modelCodegen, modelsCodegen, 
 - код должен быть аккуратным и завершённым`;
 
   // Нормализация списков, чтобы избежать ошибок .map/.join на не-массивах
-  const asArray = (v) => {
-    if (v == null) return [];
-    if (Array.isArray(v)) return v;
-    if (typeof v === 'string') return [v];
-    if (typeof v === 'object') return [v];
-    return [String(v)];
-  };
-
+  // (используем экспортируемую asArray)
   const deliverablesSrc = asArray(spec?.deliverables);
   const filesSrc = asArray(spec?.files);
   const deliverables = Array.from(new Set([
     ...(deliverablesSrc.map(d => (typeof d === 'string' ? d : d?.name)).filter(Boolean)),
     ...(filesSrc.map(f => (typeof f === 'string' ? f : f?.name)).filter(Boolean)),
   ]));
-  const filesList = deliverables.length ? deliverables.join(', ') : 'index.html, styles.css, script.js';
 
+  const filesList = deliverables.length ? deliverables.join(', ') : 'index.html, styles.css, script.js';
   const reqs = asArray(spec?.requirements).map(r => String(r));
   const cons = asArray(spec?.constraints).map(r => String(r));
 

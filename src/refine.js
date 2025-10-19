@@ -1,67 +1,61 @@
-import { chat as openrouterChat } from './openrouter.js';
+import { chat } from './openrouter.js';
+import { asArray } from './codegen.js';
+import { listAvailableTemplates } from './templates.js';
 
-export async function refinePrompt(originalTask, { apiKey, modelRefine, modelsRefine } = {}) {
-  const system = `Ты — инженер промтов для задач генерации кода.
-Твоя цель: превратить свободный запрос пользователя в чёткое техническое ТЗ.
+export async function refinePrompt(originalTask, options = {}) {
+  const available = await listAvailableTemplates();
+  const catalog = available.map(t => `- ${t.name}: ${t.description || ''}`.trim()).join('\n');
+
+  const system = `Ты — инженер промтов, который нормализует входное задание в краткое техническое задание.
+Твоя задача: уточнить цель, перечислить файлы, тесты, требования и ограничения.
+Если задача соответствует одному или нескольким доступным шаблонам, выбери их.
+
+Доступные шаблоны (имя: описание):\n${catalog || '- (нет шаблонов)'}\n
 Выходной формат — строго JSON с полями:
-- title: короткое название
-- overview: 2-4 предложения контекста
-- requirements: список требований в виде строк
-- constraints: список ограничений/стека/версий
-- files: список рекомендуемых файлов/путей
-- tests: критерии приёмки/ручные шаги проверки
-- deliverables: артефакты и ожидаемый результат
+- title (string)
+- overview (string)
+- requirements (string[])
+- constraints (string[])
+- files (string[])
+- tests (string[])
+- deliverables (string[])
+- templates (string[]) // имена шаблонов из списка выше, если подходят, иначе []
+- template_suggestion (string) // короткое имя, если подходящего шаблона нет
 Никаких комментариев вне JSON.`;
 
-  const primary = modelRefine || (process.env.OR_MODEL_REFINE || 'qwen/qwen3-coder:free');
-  const listEnv = (process.env.OR_MODELS_REFINE || '').split(',').map(s => s.trim()).filter(Boolean);
-  let models = Array.isArray(modelsRefine) && modelsRefine.length ? modelsRefine : (listEnv.length ? listEnv : [primary]);
+  const user = `Задание:\n${originalTask}\n\nУточни и нормализуй, затем верни строго JSON по схеме выше.`;
 
-  // Добавим конфигурируемые фолбэки в конец списка (уникальные)
-  const extras = [];
-  const addExtra = (val) => {
-    if (!val) return; const parts = String(val).split(',').map(s => s.trim()).filter(Boolean);
-    for (const p of parts) { if (!models.includes(p)) extras.push(p); }
-  };
-  addExtra(process.env.OR_MODEL_REFINE_FALLBACK);
-  addExtra(process.env.OR_MODEL_CODEGEN_FALLBACK);
-  addExtra(process.env.OPENROUTER_MODEL_FALLBACK);
-  addExtra('mistralai/mistral-small:free');
-  addExtra('qwen/qwen3-coder:free');
-  models = models.concat(extras);
+  const res = await chat([
+    { role: 'system', content: system },
+    { role: 'user', content: user },
+  ], { format: 'json' }, options);
 
-  async function runOnce(m) {
-    const { content } = await openrouterChat({
-      model: m,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: originalTask }
-      ],
-      stream: false,
-      format: 'json',
-      options: { temperature: 0.2 },
-      apiKey,
-    });
-    return content;
+  let spec;
+  try {
+    spec = typeof res === 'string' ? JSON.parse(res) : res;
+  } catch (e) {
+    // Fallback: minimal brief
+    spec = {
+      title: originalTask.slice(0, 80),
+      overview: originalTask,
+      requirements: [],
+      constraints: [],
+      files: [],
+      tests: [],
+      deliverables: [],
+      templates: [],
+      template_suggestion: '',
+    };
   }
 
-  // Последовательные попытки по пулу моделей
-  for (const m of models) {
-    try {
-      const content = await runOnce(m);
-      try {
-        const spec = JSON.parse(content);
-        return spec;
-      } catch {
-        // Невалидный JSON — пробуем следующую модель
-        continue;
-      }
-    } catch (e) {
-      // Любая ошибка провайдера — пробуем следующую
-      continue;
-    }
-  }
+  // Normalize lists to arrays
+  spec.requirements = asArray(spec.requirements);
+  spec.constraints = asArray(spec.constraints);
+  spec.files = asArray(spec.files);
+  spec.tests = asArray(spec.tests);
+  spec.deliverables = asArray(spec.deliverables);
+  spec.templates = asArray(spec.templates);
+  if (typeof spec.template_suggestion !== 'string') spec.template_suggestion = '';
 
-  // Если все модели не сработали — минимальный бриф
-  return { title: 'Технический бриф', overview: originalTask, requirements: [], constraints: [], files: [], tests: [], deliverables: [] };
+  return spec;
 }
