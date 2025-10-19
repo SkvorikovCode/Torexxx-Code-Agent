@@ -1,4 +1,4 @@
-import { chat } from './openrouter.js';
+import { chat as openrouterChat } from './openrouter.js';
 import { asArray } from './codegen.js';
 import { listAvailableTemplates } from './templates.js';
 
@@ -25,16 +25,47 @@ export async function refinePrompt(originalTask, options = {}) {
 
   const user = `Задание:\n${originalTask}\n\nУточни и нормализуй, затем верни строго JSON по схеме выше.`;
 
-  const res = await chat([
-    { role: 'system', content: system },
-    { role: 'user', content: user },
-  ], { format: 'json' }, options);
+  // Модель для рефайна: берём из ENV, иначе свободные дефолты
+  const primary = process.env.OR_MODEL_REFINE || process.env.OR_MODEL_CODEGEN || 'mistralai/mistral-small:free';
+  const poolEnv = (process.env.OR_MODELS_REFINE || '').split(',').map(s => s.trim()).filter(Boolean);
+  const fallback = (process.env.OR_MODEL_REFINE_FALLBACK || '').split(',').map(s => s.trim()).filter(Boolean);
+  const extras = [];
+  const addExtra = (val) => { if (!val) return; const parts = String(val).split(',').map(s => s.trim()).filter(Boolean); for (const p of parts) { if (!extras.includes(p)) extras.push(p); } };
+  addExtra(process.env.OPENROUTER_MODEL_FALLBACK);
+  addExtra('qwen/qwen3-coder:free');
+  addExtra('mistralai/mistral-small:free');
+  const models = (poolEnv.length ? poolEnv : [primary]).concat(fallback).concat(extras);
+
+  let content = '';
+  const apiKey = options.apiKey || process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_EMBEDDED_KEY || '';
+
+  // Пытаемся последовательно получить JSON-ответ
+  for (const m of models) {
+    try {
+      const { content: c } = await openrouterChat({
+        model: m,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: user }
+        ],
+        stream: false,
+        format: 'json',
+        options: { temperature: 0 },
+        apiKey,
+      });
+      content = c || '';
+      if (content) break;
+    } catch (e) {
+      // пробуем следующую модель
+      continue;
+    }
+  }
 
   let spec;
   try {
-    spec = typeof res === 'string' ? JSON.parse(res) : res;
+    spec = JSON.parse(content);
   } catch (e) {
-    // Fallback: minimal brief
+    // Fallback: минимальное ТЗ при ошибке парсинга/сетапа
     spec = {
       title: originalTask.slice(0, 80),
       overview: originalTask,
@@ -48,7 +79,7 @@ export async function refinePrompt(originalTask, options = {}) {
     };
   }
 
-  // Normalize lists to arrays
+  // Нормализация списков
   spec.requirements = asArray(spec.requirements);
   spec.constraints = asArray(spec.constraints);
   spec.files = asArray(spec.files);
