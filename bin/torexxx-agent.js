@@ -10,12 +10,18 @@ import { refinePrompt } from '../src/refine.js';
 import { generateCode } from '../src/codegen.js';
 import { saveProjectArtifacts } from '../src/save.js';
 import { ensureOllamaUp } from '../src/ollama.js';
-import { loadConfig, saveConfig } from '../src/config.js';
+// import { loadConfig, saveConfig } from '../src/config.js';
+import dotenv from 'dotenv';
+import path from 'path';
+
+// Load env from .env then .env.local (local overrides)
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+dotenv.config({ path: path.resolve(process.cwd(), '.env.local'), override: true });
 
 const program = new Command();
 program
   .name('torexxx-agent')
-  .description('LLM агент: чистка промта и генерация кода (Ollama/OpenRouter)')
+  .description('LLM агент: чистка промта и генерация кода (Ollama/Torexxx Cloud)')
   .version('0.1.0');
 
 program
@@ -42,11 +48,10 @@ program
       userTask = String(task || '').trim();
     }
 
-    // Автоопределение провайдера + автосохранение настроек
-    const cfg = await loadConfig();
-    let provider = opts.provider || cfg.provider || process.env.LLM_PROVIDER;
-    let openrouterKey = opts.openrouterKey || cfg.openrouterKey || process.env.OPENROUTER_API_KEY;
-    let host = opts.host || cfg.ollamaHost || process.env.OLLAMA_HOST || 'http://localhost:11434';
+    // ENV-only: читаем только из флагов и переменных окружения
+    let provider = opts.provider || process.env.LLM_PROVIDER;
+    let openrouterKey = opts.openrouterKey || process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_EMBEDDED_KEY;
+    let host = opts.host || process.env.OLLAMA_HOST || 'http://localhost:11434';
 
     if (!provider) {
       const ollamaAvailable = await ensureOllamaUp(host);
@@ -55,26 +60,15 @@ program
       } else if (openrouterKey) {
         provider = 'openrouter';
       } else {
-        const { key } = await inquirer.prompt({
-          name: 'key',
-          type: 'password',
-          message: 'Ollama недоступен. Введите OPENROUTER_API_KEY:',
-          mask: '*',
-        });
-        if (key && String(key).trim()) {
-          openrouterKey = String(key).trim();
-          provider = 'openrouter';
-        } else {
-          console.error(chalk.red('Нет доступного провайдера: запустите Ollama или укажите OPENROUTER_API_KEY.'));
-          process.exit(1);
-        }
+        console.error(chalk.red('Нет доступного провайдера: запустите Ollama или укажите OPENROUTER_API_KEY/OPENROUTER_EMBEDDED_KEY.'));
+        process.exit(1);
       }
     }
 
-    // Сохраняем актуальные настройки без лишних вопросов
-    try {
-      await saveConfig({ ...cfg, provider, openrouterKey, ollamaHost: host });
-    } catch {}
+    if (provider === 'openrouter' && !openrouterKey) {
+      console.error(chalk.red('Для провайдера openrouter требуется ключ: установите OPENROUTER_API_KEY или OPENROUTER_EMBEDDED_KEY.'));
+      process.exit(1);
+    }
 
     console.log(chalk.gray('\n• Нормализую промт через Torexxx Mini'));
     const spinner1 = ora('Подготавливаю идеальный технический бриф…').start();

@@ -15,26 +15,41 @@ export async function chat({ model, messages, apiKey = (process.env.OPENROUTER_A
     temperature: options?.temperature,
   };
 
-  // Map json format hint to OpenAI-style response_format
+  // Map json format hint to OpenAI-style response_format (not all models support it)
   if (format === 'json') {
     body.response_format = { type: 'json_object' };
   }
 
-  const res = await fetch(`${baseURL}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-      // Optional headers recommended by OpenRouter
-      'HTTP-Referer': process.env.OPENROUTER_REFERER || 'http://localhost',
-      'X-Title': process.env.OPENROUTER_TITLE || 'Torexxx-Agent',
-    },
-    body: JSON.stringify(body),
-  });
+  const doRequest = async (reqBody) => {
+    return fetch(`${baseURL}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        // Optional headers recommended by OpenRouter
+        'HTTP-Referer': process.env.OPENROUTER_REFERER || 'http://localhost',
+        'X-Title': process.env.OPENROUTER_TITLE || 'Torexxx-Agent',
+      },
+      body: JSON.stringify(reqBody),
+    });
+  };
 
+  let res = await doRequest(body);
+
+  // Fallback: some models (e.g. Meta Llama) reject response_format. Retry without it.
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`OpenRouter chat error ${res.status}: ${text}`);
+    const firstText = await res.text();
+    const needsRetry = res.status === 400 && !!body.response_format && /response_format/i.test(firstText);
+    if (needsRetry) {
+      try {
+        delete body.response_format;
+        res = await doRequest(body);
+      } catch {}
+    }
+    if (!res.ok) {
+      const text = firstText || (await res.text());
+      throw new Error(`OpenRouter chat error ${res.status}: ${text}`);
+    }
   }
 
   // Non-streaming path: parse JSON result
