@@ -1,6 +1,20 @@
 import { chat as openrouterChat } from './openrouter.js';
 
-const system = `Вы — элитный кодер. Сгенерируйте минимально жизнеспособный проект по спецификации.
+export async function generateCode(spec, { apiKey, modelCodegen, modelsCodegen, onToken, onFileStart } = {}) {
+  const primary = modelCodegen || (process.env.OR_MODEL_CODEGEN || 'qwen/qwen3-coder:free');
+  const listEnv = (process.env.OR_MODELS_CODEGEN || '').split(',').map(s => s.trim()).filter(Boolean);
+  let models = Array.isArray(modelsCodegen) && modelsCodegen.length ? modelsCodegen : (listEnv.length ? listEnv : [primary]);
+
+  const extras = [];
+  const addExtra = (val) => { if (!val) return; const parts = String(val).split(',').map(s => s.trim()).filter(Boolean); for (const p of parts) { if (!models.includes(p)) extras.push(p); } };
+  addExtra(process.env.OR_MODEL_CODEGEN_FALLBACK);
+  addExtra(process.env.OR_MODEL_REFINE_FALLBACK);
+  addExtra(process.env.OPENROUTER_MODEL_FALLBACK);
+  addExtra('qwen/qwen3-coder:free');
+  addExtra('mistralai/mistral-small:free');
+  models = models.concat(extras);
+
+  const system = `Вы — элитный кодер. Сгенерируйте минимально жизнеспособный проект по спецификации.
 Формат вывода — ТОЛЬКО последовательность файлов в блоках:
 
 <<<FILE: relative/path>>>
@@ -15,10 +29,8 @@ const system = `Вы — элитный кодер. Сгенерируйте м�
 - включите README.md с инструкциями
 - при необходимости показывайте package.json / requirements.txt
 - используйте короткие, самодостаточные примеры, которые запускаются сразу
-- код должен быть аккуратным и завершённым
-`;
+- код должен быть аккуратным и завершённым`; 
 
-export async function generateCode(spec, { apiKey, modelCodegen, onToken, onFileStart } = {}) {
   const deliverables = Array.from(new Set([
     ...((spec?.deliverables || []).map(d => (typeof d === 'string' ? d : d.name)).filter(Boolean)),
     ...((spec?.files || []).map(f => (typeof f === 'string' ? f : f.name)).filter(Boolean)),
@@ -27,25 +39,22 @@ export async function generateCode(spec, { apiKey, modelCodegen, onToken, onFile
 
   const user = `ТЗ:\nTITLE: ${spec.title || ''}\nOVERVIEW: ${Array.isArray(spec.overview) ? spec.overview.join(' ') : (spec.overview || '')}\nREQUIREMENTS:\n- ${(spec.requirements || []).join('\n- ')}\nCONSTRAINTS:\n- ${(spec.constraints || []).join('\n- ')}\n\nСгенерируй ТОЛЬКО файлы: ${filesList}. Каждый файл строго в формате блоков:\n\n<<<FILE: relative/path>>>\n\`\`\`<lang or text>\n...содержимое файла...\n\`\`\`\n<<<END FILE>>>\n\nНачинай немедленно с первого файла из списка.`;
 
-  const fallbackModelEnv = process.env.OR_MODEL_CODEGEN_FALLBACK || process.env.OPENROUTER_MODEL_FALLBACK || '';
-  const retryMs = Number(process.env.OPENROUTER_RETRY_MS || 2000);
+  const errors = [];
 
-  const primaryModel = modelCodegen || (process.env.OR_MODEL_CODEGEN || 'qwen/qwen3-coder:free');
-
-  async function runOnce(model) {
+  async function runOnce(m, useStream) {
     let watchBuf = '';
     const seen = new Set();
-
     const { content } = await openrouterChat({
-      model,
+      model: m,
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: user }
       ],
-      stream: true,
+      stream: useStream,
+      format: 'text',
       options: { temperature: 0.2 },
       apiKey,
-      onToken: (t) => {
+      onToken: useStream ? (t) => {
         onToken?.(t);
         watchBuf += t;
         while (true) {
@@ -72,50 +81,30 @@ export async function generateCode(spec, { apiKey, modelCodegen, onToken, onFile
           }
           watchBuf = watchBuf.slice(end + headerTokenLen);
         }
-      },
+      } : undefined,
     });
-
     return content;
   }
 
-  try {
-    return await runOnce(primaryModel);
-  } catch (e) {
-    const msg = String(e?.message || e);
-    const isRateLimited = msg.includes('OpenRouter chat error 429') && /rate-limited upstream/i.test(msg);
-    const isRegionForbidden = msg.includes('OpenRouter chat error 403') && (/not available in your region/i.test(msg) || /Access Forbidden/i.test(msg));
-    if (isRegionForbidden) {
-      const fallback = fallbackModelEnv || 'qwen/qwen3-coder:free';
-      if (fallback && fallback !== primaryModel) {
-        return await runOnce(fallback);
-      }
-      throw e;
-    }
-    if (!isRateLimited) {
-      throw e;
-    }
-    // Backoff retry on the same model
-    if (retryMs > 0) {
-      await new Promise(r => setTimeout(r, retryMs));
+  for (const m of models) {
+    try {
+      // пробуем стриминговую генерацию
+      const content = await runOnce(m, true);
+      return content;
+    } catch (e) {
+      errors.push({ model: m, error: String(e?.message || e) });
+      // fallback: та же модель, но без стрима
       try {
-        return await runOnce(primaryModel);
+        const content = await runOnce(m, false);
+        return content;
       } catch (e2) {
-        const msg2 = String(e2?.message || e2);
-        const still429 = msg2.includes('OpenRouter chat error 429');
-        if (!still429) throw e2;
-        // Fallback model
-        const fallback = fallbackModelEnv || 'qwen/qwen3-coder:free';
-        if (fallback && fallback !== primaryModel) {
-          return await runOnce(fallback);
-        }
-        throw e2;
+        errors.push({ model: m, error: String(e2?.message || e2) });
+        // продолжаем к следующей модели
+        continue;
       }
     }
-    // If no retry configured, attempt direct fallback
-    const fallback = fallbackModelEnv || 'qwen/qwen3-coder:free';
-    if (fallback && fallback !== primaryModel) {
-      return await runOnce(fallback);
-    }
-    throw e;
   }
+
+  const summary = errors.map((x, i) => `${i+1}) ${x.model}: ${x.error}`).join('\n');
+  throw new Error('Все модели из пула не смогли выполнить кодогенерацию. Причины по попыткам:\n' + summary);
 }

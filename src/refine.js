@@ -1,6 +1,6 @@
 import { chat as openrouterChat } from './openrouter.js';
 
-export async function refinePrompt(originalTask, { apiKey, modelRefine } = {}) {
+export async function refinePrompt(originalTask, { apiKey, modelRefine, modelsRefine } = {}) {
   const system = `Ты — инженер промтов для задач генерации кода.
 Твоя цель: превратить свободный запрос пользователя в чёткое техническое ТЗ.
 Выходной формат — строго JSON с полями:
@@ -13,9 +13,22 @@ export async function refinePrompt(originalTask, { apiKey, modelRefine } = {}) {
 - deliverables: артефакты и ожидаемый результат
 Никаких комментариев вне JSON.`;
 
-  const model = modelRefine || (process.env.OR_MODEL_REFINE || 'qwen/qwen3-coder:free');
-  const retryMs = Number(process.env.OPENROUTER_RETRY_MS || 2000);
-  const refineFallbackEnv = process.env.OR_MODEL_REFINE_FALLBACK || process.env.OR_MODEL_CODEGEN_FALLBACK || process.env.OPENROUTER_MODEL_FALLBACK || '';
+  const primary = modelRefine || (process.env.OR_MODEL_REFINE || 'qwen/qwen3-coder:free');
+  const listEnv = (process.env.OR_MODELS_REFINE || '').split(',').map(s => s.trim()).filter(Boolean);
+  let models = Array.isArray(modelsRefine) && modelsRefine.length ? modelsRefine : (listEnv.length ? listEnv : [primary]);
+
+  // Добавим конфигурируемые фолбэки в конец списка (уникальные)
+  const extras = [];
+  const addExtra = (val) => {
+    if (!val) return; const parts = String(val).split(',').map(s => s.trim()).filter(Boolean);
+    for (const p of parts) { if (!models.includes(p)) extras.push(p); }
+  };
+  addExtra(process.env.OR_MODEL_REFINE_FALLBACK);
+  addExtra(process.env.OR_MODEL_CODEGEN_FALLBACK);
+  addExtra(process.env.OPENROUTER_MODEL_FALLBACK);
+  addExtra('mistralai/mistral-small:free');
+  addExtra('qwen/qwen3-coder:free');
+  models = models.concat(extras);
 
   async function runOnce(m) {
     const { content } = await openrouterChat({
@@ -32,53 +45,23 @@ export async function refinePrompt(originalTask, { apiKey, modelRefine } = {}) {
     return content;
   }
 
-  let content;
-  try {
-    content = await runOnce(model);
-  } catch (e) {
-    const msg = String(e?.message || e);
-    const isRegionForbidden = msg.includes('OpenRouter chat error 403') && (/not available in your region/i.test(msg) || /Access Forbidden/i.test(msg));
-    const isRateLimited = msg.includes('OpenRouter chat error 429') && /rate-limited upstream/i.test(msg);
-    if (isRegionForbidden) {
-      const fallback = 'qwen/qwen3-coder:free';
-      if (fallback !== model) {
-        content = await runOnce(fallback);
-      } else {
-        throw e;
+  // Последовательные попытки по пулу моделей
+  for (const m of models) {
+    try {
+      const content = await runOnce(m);
+      try {
+        const spec = JSON.parse(content);
+        return spec;
+      } catch {
+        // Невалидный JSON — пробуем следующую модель
+        continue;
       }
-    } else if (isRateLimited) {
-      if (retryMs > 0) {
-        await new Promise(r => setTimeout(r, retryMs));
-        try {
-          content = await runOnce(model);
-        } catch (e2) {
-          const still429 = String(e2?.message || e2).includes('OpenRouter chat error 429');
-          if (!still429) throw e2;
-          const fallback = refineFallbackEnv || (model !== 'mistralai/mistral-small:free' ? 'mistralai/mistral-small:free' : 'qwen/qwen3-coder:free');
-          if (fallback && fallback !== model) {
-            content = await runOnce(fallback);
-          } else {
-            throw e2;
-          }
-        }
-      } else {
-        const fallback = refineFallbackEnv || (model !== 'mistralai/mistral-small:free' ? 'mistralai/mistral-small:free' : 'qwen/qwen3-coder:free');
-        if (fallback && fallback !== model) {
-          content = await runOnce(fallback);
-        } else {
-          throw e;
-        }
-      }
-    } else {
-      throw e;
+    } catch (e) {
+      // Любая ошибка провайдера — пробуем следующую
+      continue;
     }
   }
 
-  let spec;
-  try {
-    spec = JSON.parse(content);
-  } catch (e) {
-    spec = { title: 'Технический бриф', overview: originalTask, requirements: [], constraints: [], files: [], tests: [], deliverables: [] };
-  }
-  return spec;
+  // Если все модели не сработали — минимальный бриф
+  return { title: 'Технический бриф', overview: originalTask, requirements: [], constraints: [], files: [], tests: [], deliverables: [] };
 }

@@ -28,10 +28,18 @@ program
   .option('-p, --prompt <text>', 'Задача на написание кода')
   .option('--openrouter-key <key>', 'OPENROUTER_API_KEY', process.env.OPENROUTER_API_KEY)
   .option('--model-refine <name>', 'Модель для нормализации промта')
+  .option('--models-refine <list>', 'Пул моделей для нормализации (через запятую)')
   .option('--model-codegen <name>', 'Модель для генерации кода')
+  .option('--models-codegen <list>', 'Пул моделей для кодогенерации (через запятую)')
   .option('--editor', 'Открыть системный редактор для ввода многострочного ТЗ')
   .action(async (opts) => {
     renderHeader();
+
+    const parseList = (v) => {
+      if (!v) return undefined;
+      const arr = String(v).split(',').map(s => s.trim()).filter(Boolean);
+      return arr.length ? arr : undefined;
+    };
 
     let userTask = opts.prompt;
     if (!userTask) {
@@ -55,7 +63,11 @@ program
     const spinner1 = ora('Подготавливаю идеальный технический бриф…').start();
     let spec;
     try {
-      spec = await refinePrompt(userTask, { apiKey: openrouterKey, modelRefine: opts.modelRefine });
+      spec = await refinePrompt(userTask, {
+        apiKey: openrouterKey,
+        modelRefine: opts.modelRefine,
+        modelsRefine: parseList(opts.modelsRefine || process.env.OR_MODELS_REFINE),
+      });
       spinner1.succeed('Готово: получен структурированный бриф');
     } catch (err) {
       spinner1.fail('Ошибка при нормализации промта');
@@ -82,6 +94,7 @@ program
         onToken: () => {},
         onFileStart: (filePath) => stageUpdate(spinner2, `Генерирую: ${filePath}`),
         modelCodegen: opts.modelCodegen,
+        modelsCodegen: parseList(opts.modelsCodegen || process.env.OR_MODELS_CODEGEN),
       });
       spinner2.succeed('Код сгенерирован');
     } catch (err) {
@@ -94,23 +107,13 @@ program
     const spinner3 = ora('Пишу файлы и артефакты…').start();
     try {
       const projectPath = await saveProjectArtifacts(userTask, spec, rawOutput);
-      spinner3.succeed('Проект сохранён');
-      console.log(boxen(chalk.green(`Готово! Папка проекта:`) + '\n' + chalk.bold(projectPath), {
-        padding: 1,
-        margin: 1,
-        borderColor: 'green',
-        title: 'Torexxx-Agent',
-        titleAlignment: 'center'
-      }));
-      console.log(chalk.gray('Дальше:') + '\n' + chalk.white(`  cd ${projectPath}`) + '\n' + chalk.white('  # изучите README.md и запустите пример'));
+      spinner3.succeed('Проект сохранён: ' + chalk.green(projectPath));
+      console.log(chalk.gray('\nОткройте проект в редакторе или запустите команды из README.md.'));
     } catch (err) {
-      spinner3.fail('Ошибка сохранения проекта');
+      spinner3.fail('Ошибка при сохранении проекта');
       console.error(chalk.red(String(err)));
       process.exit(1);
     }
   });
 
-program.parseAsync().catch((e) => {
-  console.error(chalk.red(String(e)));
-  process.exit(1);
-});
+program.parseAsync();

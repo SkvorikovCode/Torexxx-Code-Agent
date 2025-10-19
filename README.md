@@ -47,6 +47,11 @@ export OPENROUTER_API_KEY=your_api_key_here
 node ./bin/torexxx-agent.js new \
   --model-refine qwen/qwen3-coder:free \
   --model-codegen qwen/qwen3-coder:free
+
+# Пулы моделей (через запятую, порядок важен)
+node ./bin/torexxx-agent.js new \
+  --models-refine "qwen/qwen3-coder:free,mistralai/mistral-small:free" \
+  --models-codegen "qwen/qwen3-coder:free,mistralai/mistral-small:free"
 ```
 
 Переменные окружения:
@@ -58,11 +63,14 @@ node ./bin/torexxx-agent.js new \
 - `OR_MODEL_REFINE` / `OR_MODEL_CODEGEN` — переопределить модели для OpenRouter
 - `OR_MODEL_REFINE_FALLBACK` — запасная модель для нормализации промта (используется при 429/403)
 - `OR_MODEL_CODEGEN_FALLBACK` — запасная модель для кодогенерации (OpenRouter)
+- `OR_MODELS_REFINE` — пул моделей для нормализации (через запятую; первая — основная)
+- `OR_MODELS_CODEGEN` — пул моделей для генерации кода (через запятую; первая — основная)
 - `OPENROUTER_RETRY_MS` — задержка перед повтором при 429 (мс, по умолчанию 2000)
 
 ## Лимиты и фолбэк моделей
-- При `429` от OpenRouter ("rate-limited upstream") агент сначала делает повтор через `OPENROUTER_RETRY_MS`, затем переключается на `OR_MODEL_CODEGEN_FALLBACK` (если задано) или на `qwen/qwen3-coder:free` по умолчанию.
-- При `403` ("Access Forbidden" / "not available in your region") агент автоматически пробует безопасную альтернативу: `qwen/qwen3-coder:free`.
+- Агент поддерживает пользовательский пул моделей. Если основная модель падает по любой причине (429, 403, несовместимость формата и т.п.), запускается следующая модель из списка.
+- При `429` от OpenRouter ("rate-limited upstream") агент может сделать повтор через `OPENROUTER_RETRY_MS`, а затем переключиться на следующую модель из пула (или `OR_MODEL_CODEGEN_FALLBACK`).
+- При `403` ("Access Forbidden" / "not available in your region") агент автоматически пробует безопасную альтернативу из пула, например `qwen/qwen3-coder:free`.
 - Некоторые модели не принимают `response_format`. Агент автоматически повторяет запрос без этого поля, чтобы сохранить совместимость.
 - Для повышения лимитов рекомендуется указать собственный `OPENROUTER_API_KEY`.
 - Для строгого JSON лучше использовать модели вроде `qwen/qwen3-coder:free`/совместимые.
@@ -99,5 +107,5 @@ node ./bin/torexxx-agent.js new \
 
 ## Примечания
 - Для OpenRouter требуется валидный ключ: установите `OPENROUTER_API_KEY` или используйте `OPENROUTER_EMBEDDED_KEY`.
-- Модели задавайте флагами `--model-refine` и `--model-codegen` (или оставьте дефолтные; агент всё сделает сам).
+- Модели задавайте флагами `--model-refine` и `--model-codegen`, либо пулом `--models-refine` / `--models-codegen` (или через переменные окружения).
 - Весь UX выполнен в терминальном стиле с анимациями (спиннеры, градиенты, стриминг токенов).
