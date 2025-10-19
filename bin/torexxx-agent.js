@@ -52,7 +52,7 @@ program
       padding: 1,
       margin: 1,
       borderColor: 'cyan',
-      title: 'llama3.1:latest',
+      title: 'Torexxx-Mini',
       titleAlignment: 'center'
     });
     console.log(specBox);

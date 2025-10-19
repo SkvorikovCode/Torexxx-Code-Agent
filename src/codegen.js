@@ -31,7 +31,7 @@ export async function generateCode(spec, { host, onToken, onFileStart } = {}) {
   const seen = new Set();
 
   const { content } = await chat({
-    model: 'qwen2.5-coder:latest',
+    model: 'codellama-7b-qml',
     messages: [
       { role: 'system', content: system },
       { role: 'user', content: user }
@@ -53,7 +53,13 @@ export async function generateCode(spec, { host, onToken, onFileStart } = {}) {
           break;
         }
         const after = idx + '<<<FILE:'.length;
-        const end = watchBuf.indexOf('>>>', after);
+        // поддержка как '>>>' так и '>>' в заголовке
+        let end = watchBuf.indexOf('>>>', after);
+        let headerTokenLen = 3;
+        if (end === -1) {
+          end = watchBuf.indexOf('>>', after);
+          headerTokenLen = 2;
+        }
         if (end === -1) {
           // неполный заголовок файла, ждём следующие токены
           watchBuf = watchBuf.slice(idx);
@@ -65,7 +71,7 @@ export async function generateCode(spec, { host, onToken, onFileStart } = {}) {
           onFileStart?.(path);
         }
         // очистим обработанный сегмент, чтобы не триггерить повторно
-        watchBuf = watchBuf.slice(end + 3);
+        watchBuf = watchBuf.slice(end + headerTokenLen);
       }
     },
   });

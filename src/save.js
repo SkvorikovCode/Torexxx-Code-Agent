@@ -8,14 +8,21 @@ function parseFileBlocks(raw) {
   while (true) {
     const start = raw.indexOf('<<<FILE:', pos);
     if (start === -1) break;
-    const headerEnd = raw.indexOf('>>>', start);
+    const after = start + '<<<FILE:'.length;
+    // поддержка как '>>>' так и '>>' в заголовке
+    let headerEnd = raw.indexOf('>>>', after);
+    let headerToken = '>>>';
+    if (headerEnd === -1) {
+      headerEnd = raw.indexOf('>>', after);
+      headerToken = '>>';
+    }
     if (headerEnd === -1) break;
-    const relPath = raw.slice(start + '<<<FILE:'.length, headerEnd).trim();
+    const relPath = raw.slice(after, headerEnd).trim();
 
     const end = raw.indexOf('<<<END FILE>>>', headerEnd);
     if (end === -1) break;
 
-    const block = raw.slice(headerEnd + '>>>'.length, end);
+    const block = raw.slice(headerEnd + headerToken.length, end);
     // Пытаемся вытащить содержимое из тройных бэктиков, если они есть
     let content = block;
     const fenceStart = block.indexOf('```');
