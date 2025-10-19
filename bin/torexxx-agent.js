@@ -9,7 +9,8 @@ import { refinePrompt } from '../src/refine.js';
 import { generateCode } from '../src/codegen.js';
 import { saveProjectArtifacts } from '../src/save.js';
 import { loadTemplates, applyTemplatesToSpec, logMissingTemplate, listAvailableTemplates } from '../src/templates.js';
-import { renderHeader } from '../src/ui.js';
+import { renderHeader, stageUpdate } from '../src/ui.js';
+import { createLoader } from '../src/loader.js';
 
 dotenv.config();
 
@@ -103,6 +104,8 @@ async function main() {
   }
 
   // 1) Нормализация запроса (нейронка выбирает шаблоны)
+  const spinner = createLoader('Нормализуем задачу…');
+  stageUpdate(spinner, 'Нормализуем задачу…');
   const spec = await refinePrompt(originalTask, { apiKey });
 
   // 2) Вычисляем итоговый список шаблонов: приоритет — выбор режима
@@ -114,6 +117,7 @@ async function main() {
       : (modelTemplates.length ? modelTemplates : explicitTemplates);
 
   // 3) Загружаем и применяем шаблоны; логируем отсутствие
+  stageUpdate(spinner, 'Подбираем и применяем шаблоны…');
   const loaded = await loadTemplates(effectiveTemplates);
   const loadedNames = new Set(loaded.map(t => t.name));
   const missing = effectiveTemplates.filter(n => !loadedNames.has(n));
@@ -126,18 +130,20 @@ async function main() {
   if (loaded.length) {
     const specWithTemplates = applyTemplatesToSpec(spec, loaded);
     console.log(`[templates] применены: ${loaded.map(t => t.name).join(', ')}`);
-    const rawOutput = await generateCode(specWithTemplates, { apiKey });
+    stageUpdate(spinner, 'Генерация кода…');
+    const rawOutput = await generateCode(specWithTemplates, { apiKey, onFileStart: (p) => stageUpdate(spinner, `Генерация: ${p}`) });
     const projPath = await saveProjectArtifacts(originalTask, specWithTemplates, rawOutput);
-    console.log('[ok] проект сгенерирован и сохранён: ' + projPath);
+    spinner.succeed('[ok] проект сгенерирован и сохранён: ' + projPath);
   } else {
     // Без шаблонов продолжаем; рекомендацию логируем только в авто-режиме
     if (mode === 'auto' && spec.template_suggestion && !explicitTemplates.length) {
       await logMissingTemplate(spec.template_suggestion, spec, originalTask);
       console.log(`[templates] рекомендован новый шаблон "${spec.template_suggestion}" — записан в requests.jsonl`);
     }
-    const rawOutput = await generateCode(spec, { apiKey });
+    stageUpdate(spinner, 'Генерация кода…');
+    const rawOutput = await generateCode(spec, { apiKey, onFileStart: (p) => stageUpdate(spinner, `Генерация: ${p}`) });
     const projPath = await saveProjectArtifacts(originalTask, spec, rawOutput);
-    console.log('[ok] проект сгенерирован без шаблонов и сохранён: ' + projPath);
+    spinner.succeed('[ok] проект сгенерирован без шаблонов и сохранён: ' + projPath);
   }
 }
 
