@@ -1,4 +1,4 @@
-import { chat as openrouterChat } from './openrouter.js';
+import { chat as openrouterChat, listModels as openrouterListModels } from './openrouter.js';
 
 export function asArray(v) {
   if (v == null) return [];
@@ -21,6 +21,35 @@ export async function generateCode(spec, { apiKey, modelCodegen, modelsCodegen, 
   addExtra('qwen/qwen3-coder:free');
   addExtra('mistralai/mistral-small:free');
   models = models.concat(extras);
+
+  // Предзапрос доступных моделей и фильтрация пула
+  try {
+    const { ids } = await openrouterListModels({ apiKey });
+    const idSet = new Set(ids);
+    const normalize = (id) => {
+      // если вариант с ":free" недоступен, пробуем без него; иначе оставляем как есть
+      if (idSet.has(id)) return id;
+      if (id.endsWith(':free')) {
+        const base = id.replace(/:free$/, '');
+        if (idSet.has(base)) return base;
+      }
+      return null;
+    };
+    const filtered = [];
+    for (const m of models) {
+      const ok = normalize(m);
+      if (ok && !filtered.includes(ok)) filtered.push(ok);
+    }
+    // если пул пуст — пробуем выбрать безопасные модели из списка по эвристике
+    if (!filtered.length) {
+      const candidates = ids.filter(x => /coder|code|gpt|llama|claude|gemini/i.test(String(x)));
+      models = candidates.slice(0, 5);
+    } else {
+      models = filtered;
+    }
+  } catch (e) {
+    // Если /models недоступен, продолжаем со статическим пулом
+  }
 
   const system = `Вы — элитный кодер. Сгенерируйте минимально жизнеспособный проект по спецификации.
 Формат вывода — ТОЛЬКО последовательность файлов в блоках:
@@ -55,6 +84,9 @@ export async function generateCode(spec, { apiKey, modelCodegen, modelsCodegen, 
   const user = `ТЗ:\nTITLE: ${spec.title || ''}\nOVERVIEW: ${Array.isArray(spec.overview) ? spec.overview.join(' ') : (spec.overview || '')}\nREQUIREMENTS:\n- ${reqs.join('\n- ')}\nCONSTRAINTS:\n- ${cons.join('\n- ')}\n\nСгенерируй ТОЛЬКО файл-блоки для: ${filesList}. Каждый файл строго в формате блоков:\n\n<<<FILE: relative/path>>>\n\`\`\`<lang or text>\n...содержимое файла...\n\`\`\`\n<<<END FILE>>>\n\nНачинай немедленно с первого файла из списка.`;
 
   const errors = [];
+
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+  const retryDelay = Number(process.env.OPENROUTER_RETRY_MS || 2000);
 
   async function runOnce(m, useStream) {
     let watchBuf = '';
@@ -107,13 +139,22 @@ export async function generateCode(spec, { apiKey, modelCodegen, modelsCodegen, 
       const content = await runOnce(m, true);
       return content;
     } catch (e) {
-      errors.push({ model: m, error: String(e?.message || e) });
+      const msg = String(e?.message || e);
+      errors.push({ model: m, error: msg });
+      // если 429 — делаем небольшой бэкоф перед повтором
+      if (/\b429\b/.test(msg)) {
+        await sleep(retryDelay);
+      }
       // fallback: та же модель, но без стрима
       try {
         const content = await runOnce(m, false);
         return content;
       } catch (e2) {
-        errors.push({ model: m, error: String(e2?.message || e2) });
+        const msg2 = String(e2?.message || e2);
+        errors.push({ model: m, error: msg2 });
+        if (/\b429\b/.test(msg2)) {
+          await sleep(retryDelay);
+        }
         // продолжаем к следующей модели
         continue;
       }

@@ -92,3 +92,25 @@ export async function chat({ model, messages, apiKey = (process.env.OPENROUTER_A
 
   return { content: full };
 }
+
+// List available models for the current API key
+export async function listModels({ apiKey = (process.env.OPENROUTER_API_KEY || EMBEDDED_OPENROUTER_KEY), baseURL = defaultBaseURL } = {}) {
+  if (!apiKey) {
+    throw new Error('Отсутствует OPENROUTER_API_KEY. Установите переменную окружения, зашьйте ключ (OPENROUTER_EMBEDDED_KEY) или передайте apiKey.');
+  }
+  const res = await fetch(`${baseURL}/models`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'HTTP-Referer': process.env.OPENROUTER_REFERER || 'http://localhost',
+      'X-Title': process.env.OPENROUTER_TITLE || 'Torexxx-Agent',
+    }
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`OpenRouter models error ${res.status}: ${text}`);
+  }
+  const data = await res.json();
+  const ids = Array.isArray(data?.data) ? data.data.map(m => m?.id).filter(Boolean) : [];
+  return { ids, raw: data };
+}

@@ -11,6 +11,7 @@ import { saveProjectArtifacts } from '../src/save.js';
 import { loadTemplates, applyTemplatesToSpec, logMissingTemplate, listAvailableTemplates } from '../src/templates.js';
 import { renderHeader, stageUpdate } from '../src/ui.js';
 import { createLoader } from '../src/loader.js';
+import { listModels } from '../src/openrouter.js';
 
 dotenv.config();
 
@@ -83,6 +84,90 @@ async function runWizard() {
   return { originalTask: task || 'Новый проект', mode, explicitTemplates, apiKey };
 }
 
+async function tryGenerateWithRecovery(specObj, { apiKey, spinner }) {
+  const run = async (opts = {}) => generateCode(specObj, {
+    apiKey,
+    ...opts,
+    onFileStart: (p) => stageUpdate(spinner, `Генерация: ${p}`)
+  });
+
+  try {
+    return await run();
+  } catch (err) {
+    const msg = String(err?.message || err);
+    console.log('\n[agent] Ошибка кодогенерации:', msg);
+    const is429 = /\b429\b/i.test(msg) || /rate limit/i.test(msg) || /free-models-per-day/i.test(msg);
+    const is404 = /\b404\b/i.test(msg) || /No endpoints found/i.test(msg);
+
+    const { action } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'action',
+        message: 'Проблемы с OpenRouter. Выберите действие:',
+        choices: [
+          { name: 'Ввести другой OpenRouter API Key и повторить', value: 'key' },
+          { name: 'Повторить с текущим ключом (через несколько секунд)', value: 'retry' },
+          { name: 'Выбрать доступные модели и повторить', value: 'models' },
+          { name: 'Прервать', value: 'abort' },
+        ],
+        default: is429 ? 'key' : (is404 ? 'models' : 'retry'),
+      }
+    ]);
+
+    if (action === 'abort') throw err;
+
+    if (action === 'key') {
+      const kk = await inquirer.prompt([
+        {
+          type: 'password',
+          name: 'apiKey',
+          message: 'Новый OpenRouter API Key (скрыто):',
+          mask: '*',
+          filter: (s) => String(s || '').trim(),
+        }
+      ]);
+      apiKey = kk.apiKey || apiKey;
+      stageUpdate(spinner, 'Ключ обновлён, повторяем генерацию…');
+      return await run();
+    }
+
+    if (action === 'retry') {
+      const ms = Number(process.env.OPENROUTER_RETRY_MS || 3000);
+      stageUpdate(spinner, `Повтор через ${Math.round(ms / 1000)} с…`);
+      await new Promise(r => setTimeout(r, ms));
+      return await run();
+    }
+
+    if (action === 'models') {
+      stageUpdate(spinner, 'Запрашиваем доступные модели…');
+      let ids = [];
+      try {
+        const { ids: list } = await listModels({ apiKey });
+        ids = list;
+      } catch (e) {
+        console.log('[agent] Не удалось получить список моделей:', String(e?.message || e));
+      }
+      const suggested = ids.filter(x => /coder|code|gpt|llama|claude|gemini/i.test(String(x))).slice(0, 12);
+      const choices = (suggested.length ? suggested : ids.slice(0, 24)).map(id => ({ name: id, value: id }));
+      const res = await inquirer.prompt([
+        {
+          type: 'checkbox',
+          name: 'models',
+          message: 'Выберите модели для попытки кодогенерации:',
+          choices,
+          pageSize: 24,
+          validate: (arr) => arr.length ? true : 'Выберите хотя бы одну модель',
+        }
+      ]);
+      const selected = res.models?.length ? res.models : suggested;
+      stageUpdate(spinner, 'Повторяем генерацию с выбранными моделями…');
+      return await run({ modelsCodegen: selected });
+    }
+
+    return await run();
+  }
+}
+
 async function main() {
   const argv = yargs(hideBin(process.argv))
     .option('prompt', { type: 'string', describe: 'Задание на генерацию', demandOption: false })
@@ -131,9 +216,9 @@ async function main() {
     const specWithTemplates = applyTemplatesToSpec(spec, loaded);
     console.log(`[templates] применены: ${loaded.map(t => t.name).join(', ')}`);
     stageUpdate(spinner, 'Генерация кода…');
-    const rawOutput = await generateCode(specWithTemplates, { apiKey, onFileStart: (p) => stageUpdate(spinner, `Генерация: ${p}`) });
+    const rawOutput = await tryGenerateWithRecovery(specWithTemplates, { apiKey, spinner });
     const projPath = await saveProjectArtifacts(originalTask, specWithTemplates, rawOutput);
-    spinner.succeed('[ok] проект сгенерирован и сохранён: ' + projPath);
+    spinner.succeed('[ок] проект сгенерирован и сохранён: ' + projPath);
   } else {
     // Без шаблонов продолжаем; рекомендацию логируем только в авто-режиме
     if (mode === 'auto' && spec.template_suggestion && !explicitTemplates.length) {
@@ -141,9 +226,9 @@ async function main() {
       console.log(`[templates] рекомендован новый шаблон "${spec.template_suggestion}" — записан в requests.jsonl`);
     }
     stageUpdate(spinner, 'Генерация кода…');
-    const rawOutput = await generateCode(spec, { apiKey, onFileStart: (p) => stageUpdate(spinner, `Генерация: ${p}`) });
+    const rawOutput = await tryGenerateWithRecovery(spec, { apiKey, spinner });
     const projPath = await saveProjectArtifacts(originalTask, spec, rawOutput);
-    spinner.succeed('[ok] проект сгенерирован без шаблонов и сохранён: ' + projPath);
+    spinner.succeed('[ок] проект сгенерирован без шаблонов и сохранён: ' + projPath);
   }
 }
 
