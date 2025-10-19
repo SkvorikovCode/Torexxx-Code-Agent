@@ -2,17 +2,13 @@
 
 Красивый CLI агент в стиле "Claude Code", который:
 - принимает задачу на написание кода;
-- нормализует промт через `llama3.1:latest` (Ollama) или OpenRouter;
-- генерирует код через локальные модели Ollama (по умолчанию) или модели OpenRouter;
+- нормализует промт через OpenRouter;
+- генерирует код через модели OpenRouter;
 - сохраняет артефакты и файлы в `Torexxx-Agent/projects/*`.
 
 ## Требования
 - Node.js >= 18
-- Установленный и запущенный Ollama (`ollama serve`) — для провайдера `ollama`
-- Аккаунт OpenRouter и ключ API `OPENROUTER_API_KEY` — для провайдера `openrouter`
-- Модели (для Ollama):
-  - `ollama pull llama3.1`
-  - `ollama pull qwen2.5-coder`
+- Аккаунт OpenRouter и ключ API `OPENROUTER_API_KEY`
 
 ## Установка и запуск
 Внутри папки проекта:
@@ -28,18 +24,10 @@ node ./bin/torexxx-agent.js new
 node ./bin/torexxx-agent.js new --editor
 ```
 
-Самый простой запуск — без флагов: агент сам определит провайдера (если Ollama доступен — выберет его; если найден `OPENROUTER_API_KEY` или Ollama недоступен — переключится на OpenRouter).
-
 Или сразу передать задачу без интерактива:
 
 ```bash
 node ./bin/torexxx-agent.js new --prompt "Сделай веб-сервер на Node.js с кнопкой и счётом кликов"
-```
-
-При необходимости задайте адрес Ollama:
-
-```bash
-node ./bin/torexxx-agent.js new --host http://localhost:11434
 ```
 
 Приоритет источников настроек: флаги CLI > переменные окружения.
@@ -47,26 +35,26 @@ node ./bin/torexxx-agent.js new --host http://localhost:11434
 ### Использование .env
 CLI автоматически загружает переменные из файлов `.env` и `.env.local` в корне проекта (значения из `.env.local` перекрывают `.env`). Пример: скопируйте `.env.example` в `.env` и заполните значения.
 
-Использование с OpenRouter (явно):
+Использование с OpenRouter:
 
 ```bash
 # Вариант 1: через .env
-# OPENROUTER_API_KEY=...  # или OPENROUTER_EMBEDDED_KEY=...
-node ./bin/torexxx-agent.js new --provider openrouter
+# OPENROUTER_API_KEY=...
+node ./bin/torexxx-agent.js new
 
 # Вариант 2: экспорт в shell
 export OPENROUTER_API_KEY=your_api_key_here
-node ./bin/torexxx-agent.js new --provider openrouter \
-  --model-refine openai/gpt-4o-mini \
-  --model-codegen openai/gpt-4o-mini
+node ./bin/torexxx-agent.js new \
+  --model-refine qwen/qwen3-coder:free \
+  --model-codegen qwen/qwen3-coder:free
 ```
 
 Переменные окружения:
-- `OLLAMA_HOST` — адрес Ollama (по умолчанию `http://localhost:11434`)
 - `OPENROUTER_API_KEY` — ключ OpenRouter
 - `OPENROUTER_EMBEDDED_KEY` — встроенный ключ для закрытой сборки (альтернатива переменной `OPENROUTER_API_KEY`)
 - `OPENROUTER_BASE_URL` — базовый URL для OpenRouter API (по умолчанию `https://openrouter.ai/api/v1`)
-- `LLM_PROVIDER` — провайдер по умолчанию (`ollama` или `openrouter`)
+- `OPENROUTER_REFERER` — HTTP Referer (рекомендовано)
+- `OPENROUTER_TITLE` — заголовок приложения (рекомендовано)
 - `OR_MODEL_REFINE` / `OR_MODEL_CODEGEN` — переопределить модели для OpenRouter
 - `OR_MODEL_CODEGEN_FALLBACK` — запасная модель для кодогенерации (OpenRouter)
 - `OPENROUTER_RETRY_MS` — задержка перед повтором при 429 (мс, по умолчанию 2000)
@@ -91,7 +79,7 @@ node ./bin/torexxx-agent.js new --provider openrouter \
 
 ## Что сохраняется
 - `prompt.original.txt` — исходная формулировка задачи
-- `prompt.refined.json` — очищенный ТЗ (бримф)
+- `prompt.refined.json` — очищенный ТЗ (бриф)
 - `generation.raw.md` — полный потоковый ответ модели
 - Сгенерированные файлы проекта по блокам `<<<FILE: ...>>>`
 - `meta.json` — метаданные о генерации
@@ -108,7 +96,6 @@ node ./bin/torexxx-agent.js new --provider openrouter \
 ```
 
 ## Примечания
-- Если Ollama не запущен или модели не скачаны, агент сообщит об ошибке подключения.
 - Для OpenRouter требуется валидный ключ: установите `OPENROUTER_API_KEY` или используйте `OPENROUTER_EMBEDDED_KEY`.
 - Модели задавайте флагами `--model-refine` и `--model-codegen` (или оставьте дефолтные; агент всё сделает сам).
 - Весь UX выполнен в терминальном стиле с анимациями (спиннеры, градиенты, стриминг токенов).

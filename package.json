@@ -1,7 +1,7 @@
 {
   "name": "torexxx-agent",
   "version": "0.1.0",
-  "description": "CLI агент для нормализации промтов и генерации кода через Ollama (llama3.1, qwen2.5-coder)",
+  "description": "CLI агент для нормализации промтов и генерации кода через OpenRouter",
   "type": "module",
   "bin": {
     "torexxx-agent": "./bin/cli.cjs"
@@ -16,7 +16,7 @@
     "build:all": "npm run build:mac && npm run build:win"
   },
   "keywords": [
-    "ollama",
+    "openrouter",
     "llm",
     "cli",
     "codegen"

@@ -1,4 +1,3 @@
-import { chat as ollamaChat } from './ollama.js';
 import { chat as openrouterChat } from './openrouter.js';
 
 const system = `Вы — элитный кодер. Сгенерируйте минимально жизнеспособный проект по спецификации.
@@ -19,7 +18,7 @@ const system = `Вы — элитный кодер. Сгенерируйте м�
 - код должен быть аккуратным и завершённым
 `;
 
-export async function generateCode(spec, { host, provider = 'ollama', apiKey, modelCodegen, onToken, onFileStart } = {}) {
+export async function generateCode(spec, { apiKey, modelCodegen, onToken, onFileStart } = {}) {
   const deliverables = Array.from(new Set([
     ...((spec?.deliverables || []).map(d => (typeof d === 'string' ? d : d.name)).filter(Boolean)),
     ...((spec?.files || []).map(f => (typeof f === 'string' ? f : f.name)).filter(Boolean)),
@@ -31,14 +30,13 @@ export async function generateCode(spec, { host, provider = 'ollama', apiKey, mo
   const fallbackModelEnv = process.env.OR_MODEL_CODEGEN_FALLBACK || process.env.OPENROUTER_MODEL_FALLBACK || '';
   const retryMs = Number(process.env.OPENROUTER_RETRY_MS || 2000);
 
-  const useChat = provider === 'openrouter' ? openrouterChat : ollamaChat;
-  const primaryModel = modelCodegen || (provider === 'openrouter' ? (process.env.OR_MODEL_CODEGEN || 'qwen/qwen3-coder:free') : 'codellama-7b-qml');
+  const primaryModel = modelCodegen || (process.env.OR_MODEL_CODEGEN || 'qwen/qwen3-coder:free');
 
   async function runOnce(model) {
     let watchBuf = '';
     const seen = new Set();
 
-    const { content } = await useChat({
+    const { content } = await openrouterChat({
       model,
       messages: [
         { role: 'system', content: system },
@@ -46,7 +44,6 @@ export async function generateCode(spec, { host, provider = 'ollama', apiKey, mo
       ],
       stream: true,
       options: { temperature: 0.2 },
-      host,
       apiKey,
       onToken: (t) => {
         onToken?.(t);
@@ -86,7 +83,7 @@ export async function generateCode(spec, { host, provider = 'ollama', apiKey, mo
   } catch (e) {
     const msg = String(e?.message || e);
     const isRateLimited = msg.includes('OpenRouter chat error 429') && /rate-limited upstream/i.test(msg);
-    if (!isRateLimited || provider !== 'openrouter') {
+    if (!isRateLimited) {
       throw e;
     }
     // Backoff retry on the same model

@@ -9,7 +9,6 @@ import { renderHeader, stageUpdate } from '../src/ui.js';
 import { refinePrompt } from '../src/refine.js';
 import { generateCode } from '../src/codegen.js';
 import { saveProjectArtifacts } from '../src/save.js';
-import { ensureOllamaUp } from '../src/ollama.js';
 // import { loadConfig, saveConfig } from '../src/config.js';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -21,15 +20,13 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env.local'), override: true 
 const program = new Command();
 program
   .name('torexxx-agent')
-  .description('LLM агент: чистка промта и генерация кода (Ollama/Torexxx Cloud)')
+  .description('LLM агент: чистка промта и генерация кода (OpenRouter)')
   .version('0.1.0');
 
 program
   .command('new')
   .description('Создать новый проект из текстовой задачи')
   .option('-p, --prompt <text>', 'Задача на написание кода')
-  .option('--host <url>', 'Ollama host')
-  .option('--provider <name>', 'Провайдер LLM: ollama | openrouter')
   .option('--openrouter-key <key>', 'OPENROUTER_API_KEY', process.env.OPENROUTER_API_KEY)
   .option('--model-refine <name>', 'Модель для нормализации промта')
   .option('--model-codegen <name>', 'Модель для генерации кода')
@@ -48,25 +45,10 @@ program
       userTask = String(task || '').trim();
     }
 
-    // ENV-only: читаем только из флагов и переменных окружения
-    let provider = opts.provider || process.env.LLM_PROVIDER;
-    let openrouterKey = opts.openrouterKey || process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_EMBEDDED_KEY;
-    let host = opts.host || process.env.OLLAMA_HOST || 'http://localhost:11434';
-
-    if (!provider) {
-      const ollamaAvailable = await ensureOllamaUp(host);
-      if (ollamaAvailable) {
-        provider = 'ollama';
-      } else if (openrouterKey) {
-        provider = 'openrouter';
-      } else {
-        console.error(chalk.red('Нет доступного провайдера: запустите Ollama или укажите OPENROUTER_API_KEY/OPENROUTER_EMBEDDED_KEY.'));
-        process.exit(1);
-      }
-    }
-
-    if (provider === 'openrouter' && !openrouterKey) {
-      console.error(chalk.red('Для провайдера openrouter требуется ключ: установите OPENROUTER_API_KEY или OPENROUTER_EMBEDDED_KEY.'));
+    // Только OpenRouter
+    const openrouterKey = opts.openrouterKey || process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_EMBEDDED_KEY;
+    if (!openrouterKey) {
+      console.error(chalk.red('Для OpenRouter требуется ключ: установите OPENROUTER_API_KEY или используйте OPENROUTER_EMBEDDED_KEY.'));
       process.exit(1);
     }
 
@@ -74,7 +56,7 @@ program
     const spinner1 = ora('Подготавливаю идеальный технический бриф…').start();
     let spec;
     try {
-      spec = await refinePrompt(userTask, { host, provider, apiKey: openrouterKey, modelRefine: opts.modelRefine });
+      spec = await refinePrompt(userTask, { apiKey: openrouterKey, modelRefine: opts.modelRefine });
       spinner1.succeed('Готово: получен структурированный бриф');
     } catch (err) {
       spinner1.fail('Ошибка при нормализации промта');
@@ -97,8 +79,6 @@ program
     let rawOutput = '';
     try {
       rawOutput = await generateCode(spec, {
-        host,
-        provider,
         apiKey: openrouterKey,
         onToken: () => {},
         onFileStart: (filePath) => stageUpdate(spinner2, `Генерирую: ${filePath}`),
