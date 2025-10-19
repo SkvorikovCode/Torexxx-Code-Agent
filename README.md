@@ -28,6 +28,8 @@ node ./bin/torexxx-agent.js new
 node ./bin/torexxx-agent.js new --editor
 ```
 
+Самый простой запуск — без флагов: агент сам определит провайдера (если Ollama доступен — выберет его; если найден `OPENROUTER_API_KEY` или Ollama недоступен — предложит OpenRouter) и, при необходимости, спросит ключ и сохранит его в конфиге `~/.torexxx-agent/config.json`.
+
 Или сразу передать задачу без интерактива:
 
 ```bash
@@ -39,8 +41,10 @@ node ./bin/torexxx-agent.js new --prompt "Сделай веб-сервер на 
 ```bash
 node ./bin/torexxx-agent.js new --host http://localhost:11434
 ```
+Агент предложит сохранить указанный `--host` в конфиге `~/.torexxx-agent/config.json` (поле `ollamaHost`), чтобы использовать его по умолчанию в следующих запусках.
+Приоритет источников настроек: флаги CLI > конфиг > переменные окружения.
 
-Использование с OpenRouter:
+Использование с OpenRouter (явно):
 
 ```bash
 export OPENROUTER_API_KEY=your_api_key_here
@@ -53,6 +57,7 @@ node ./bin/torexxx-agent.js new --provider openrouter \
 - `OLLAMA_HOST` — адрес Ollama (по умолчанию `http://localhost:11434`)
 - `OPENROUTER_API_KEY` — ключ OpenRouter
 - `OPENROUTER_BASE_URL` — базовый URL для OpenRouter API (по умолчанию `https://openrouter.ai/api/v1`)
+- `LLM_PROVIDER` — провайдер по умолчанию (`ollama` или `openrouter`)
 
 ## Что сохраняется
 - `prompt.original.txt` — исходная формулировка задачи
@@ -74,5 +79,5 @@ node ./bin/torexxx-agent.js new --provider openrouter \
 
 ## Примечания
 - Если Ollama не запущен или модели не скачаны, агент сообщит об ошибке подключения.
-- Для OpenRouter требуется валидный `OPENROUTER_API_KEY`. Модели задавайте флагами `--model-refine` и `--model-codegen`.
+- Для OpenRouter требуется валидный `OPENROUTER_API_KEY`. Модели задавайте флагами `--model-refine` и `--model-codegen` (или оставьте дефолтные; агент всё сделает сам).
 - Весь UX выполнен в терминальном стиле с анимациями (спиннеры, градиенты, стриминг токенов).

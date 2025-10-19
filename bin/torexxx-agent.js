@@ -9,6 +9,8 @@ import { renderHeader, stageUpdate } from '../src/ui.js';
 import { refinePrompt } from '../src/refine.js';
 import { generateCode } from '../src/codegen.js';
 import { saveProjectArtifacts } from '../src/save.js';
+import { ensureOllamaUp } from '../src/ollama.js';
+import { loadConfig, saveConfig } from '../src/config.js';
 
 const program = new Command();
 program
@@ -20,8 +22,8 @@ program
   .command('new')
   .description('Создать новый проект из текстовой задачи')
   .option('-p, --prompt <text>', 'Задача на написание кода')
-  .option('--host <url>', 'Ollama host', process.env.OLLAMA_HOST || 'http://localhost:11434')
-  .option('--provider <name>', 'Провайдер LLM: ollama | openrouter', process.env.LLM_PROVIDER || 'ollama')
+  .option('--host <url>', 'Ollama host')
+  .option('--provider <name>', 'Провайдер LLM: ollama | openrouter')
   .option('--openrouter-key <key>', 'OPENROUTER_API_KEY', process.env.OPENROUTER_API_KEY)
   .option('--model-refine <name>', 'Модель для нормализации промта')
   .option('--model-codegen <name>', 'Модель для генерации кода')
@@ -40,11 +42,70 @@ program
       userTask = String(task || '').trim();
     }
 
+    // Дружелюбный выбор провайдера и ключа
+    const cfg = await loadConfig();
+    let provider = opts.provider || cfg.provider || process.env.LLM_PROVIDER;
+    let openrouterKey = opts.openrouterKey || cfg.openrouterKey || process.env.OPENROUTER_API_KEY;
+    let host = opts.host || cfg.ollamaHost || process.env.OLLAMA_HOST || 'http://localhost:11434';
+
+    if (!provider) {
+      const ollamaAvailable = await ensureOllamaUp(host);
+      const hasOR = !!openrouterKey;
+      const defaultChoice = ollamaAvailable && !hasOR ? 'ollama' : 'openrouter';
+      const { prov } = await inquirer.prompt({
+        name: 'prov',
+        type: 'list',
+        message: 'Выберите провайдера LLM:',
+        choices: [
+          { name: 'Ollama (локально)', value: 'ollama' },
+          { name: 'OpenRouter (облако)', value: 'openrouter' },
+        ],
+        default: defaultChoice,
+      });
+      provider = prov;
+    }
+
+    if (provider === 'openrouter' && !openrouterKey) {
+      const { key } = await inquirer.prompt({
+        name: 'key',
+        type: 'password',
+        message: 'Введите OPENROUTER_API_KEY:',
+        mask: '*',
+      });
+      openrouterKey = key;
+      const { save } = await inquirer.prompt({
+        name: 'save',
+        type: 'confirm',
+        message: 'Сохранить ключ в конфиге (~/.torexxx-agent)?',
+        default: true,
+      });
+      if (save) await saveConfig({ ...cfg, provider, openrouterKey, ollamaHost: host });
+    } else if (!cfg.provider) {
+      const { saveProv } = await inquirer.prompt({
+        name: 'saveProv',
+        type: 'confirm',
+        message: 'Запомнить выбранного провайдера по умолчанию?',
+        default: true,
+      });
+      if (saveProv) await saveConfig({ ...cfg, provider, ollamaHost: host });
+    }
+
+    // Если выбрали Ollama и хост отличается от сохранённого — предложим сохранить
+    if (provider === 'ollama' && cfg.ollamaHost !== host) {
+      const { saveHost } = await inquirer.prompt({
+        name: 'saveHost',
+        type: 'confirm',
+        message: `Сохранить Ollama host (${host}) в конфиге?`,
+        default: true,
+      });
+      if (saveHost) await saveConfig({ ...cfg, provider, openrouterKey, ollamaHost: host });
+    }
+
     console.log(chalk.gray('\n• Нормализую промт через Torexxx Mini'));
     const spinner1 = ora('Подготавливаю идеальный технический бриф…').start();
     let spec;
     try {
-      spec = await refinePrompt(userTask, { host: opts.host, provider: opts.provider, apiKey: opts.openrouterKey, modelRefine: opts.modelRefine });
+      spec = await refinePrompt(userTask, { host, provider, apiKey: openrouterKey, modelRefine: opts.modelRefine });
       spinner1.succeed('Готово: получен структурированный бриф');
     } catch (err) {
       spinner1.fail('Ошибка при нормализации промта');
@@ -67,9 +128,9 @@ program
     let rawOutput = '';
     try {
       rawOutput = await generateCode(spec, {
-        host: opts.host,
-        provider: opts.provider,
-        apiKey: opts.openrouterKey,
+        host,
+        provider,
+        apiKey: openrouterKey,
         onToken: () => {},
         onFileStart: (filePath) => stageUpdate(spinner2, `Генерирую: ${filePath}`),
         modelCodegen: opts.modelCodegen,
