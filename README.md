@@ -77,6 +77,18 @@ node ./bin/torexxx-agent.js new --provider openrouter \
 - Для повышения лимитов рекомендуется указать собственный `OPENROUTER_API_KEY`.
 - Для строгого JSON лучше использовать модели вроде `qwen/qwen3-coder:free`/совместимые.
 
+## Установка как полноценного CLI (macOS/Windows)
+- Глобальная установка локально (dev):
+  - Выполните `npm run link` в корне проекта.
+  - Запускайте команду `torexxx-agent new` из любой директории.
+- Глобальная установка из пакета (после публикации):
+  - `npm i -g torexxx-agent`
+  - или одноразово: `npx torexxx-agent new`
+- Сборка самодостаточных бинарников:
+  - macOS: `npm run build:mac` → файлы в `dist/` (`torexxx-agent-x64`, `torexxx-agent-arm64`)
+  - Windows: `npm run build:win` → `dist/torexxx-agent.exe`
+  - Все сразу: `npm run build:all`
+
 ## Что сохраняется
 - `prompt.original.txt` — исходная формулировка задачи
 - `prompt.refined.json` — очищенный ТЗ (бримф)

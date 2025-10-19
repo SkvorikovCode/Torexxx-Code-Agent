@@ -4,11 +4,16 @@
   "description": "CLI агент для нормализации промтов и генерации кода через Ollama (llama3.1, qwen2.5-coder)",
   "type": "module",
   "bin": {
-    "torexxx-agent": "./bin/torexxx-agent.js"
+    "torexxx-agent": "./bin/cli.cjs"
   },
   "scripts": {
     "start": "node ./bin/torexxx-agent.js",
-    "dev": "node ./bin/torexxx-agent.js"
+    "dev": "node ./bin/torexxx-agent.js",
+    "link": "npm link",
+    "bundle": "esbuild bin/torexxx-agent.js --bundle --platform=node --format=cjs --outfile=build/cli.cjs",
+    "build:mac": "npm run bundle && pkg ./build/cli.cjs --targets node18-macos-x64,node18-macos-arm64 --output dist/torexxx-agent",
+    "build:win": "npm run bundle && pkg ./build/cli.cjs --targets node18-windows-x64 --output dist/torexxx-agent.exe",
+    "build:all": "npm run build:mac && npm run build:win"
   },
   "keywords": [
     "ollama",
@@ -33,5 +38,15 @@
     "log-update": "^6.0.0",
     "ora": "^7.0.1",
     "slugify": "^1.6.6"
+  },
+  "devDependencies": {
+    "esbuild": "^0.23.0",
+    "pkg": "^5.8.0"
+  },
+  "pkg": {
+    "assets": [
+      "README.md",
+      ".env.example"
+    ]
   }
 }
