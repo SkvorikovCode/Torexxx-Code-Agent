@@ -2,14 +2,15 @@
 
 Красивый CLI агент в стиле "Claude Code", который:
 - принимает задачу на написание кода;
-- нормализует промт через `llama3.1:latest` (Ollama);
-- генерирует код через `qwen2.5-coder:latest` (Ollama);
+- нормализует промт через `llama3.1:latest` (Ollama) или OpenRouter;
+- генерирует код через локальные модели Ollama (по умолчанию) или модели OpenRouter;
 - сохраняет артефакты и файлы в `Torexxx-Agent/projects/*`.
 
 ## Требования
 - Node.js >= 18
-- Установленный и запущенный Ollama (`ollama serve`)
-- Модели:
+- Установленный и запущенный Ollama (`ollama serve`) — для провайдера `ollama`
+- Аккаунт OpenRouter и ключ API `OPENROUTER_API_KEY` — для провайдера `openrouter`
+- Модели (для Ollama):
   - `ollama pull llama3.1`
   - `ollama pull qwen2.5-coder`
 
@@ -39,10 +40,24 @@ node ./bin/torexxx-agent.js new --prompt "Сделай веб-сервер на 
 node ./bin/torexxx-agent.js new --host http://localhost:11434
 ```
 
+Использование с OpenRouter:
+
+```bash
+export OPENROUTER_API_KEY=your_api_key_here
+node ./bin/torexxx-agent.js new --provider openrouter \
+  --model-refine openai/gpt-4o-mini \
+  --model-codegen openai/gpt-4o-mini
+```
+
+Переменные окружения:
+- `OLLAMA_HOST` — адрес Ollama (по умолчанию `http://localhost:11434`)
+- `OPENROUTER_API_KEY` — ключ OpenRouter
+- `OPENROUTER_BASE_URL` — базовый URL для OpenRouter API (по умолчанию `https://openrouter.ai/api/v1`)
+
 ## Что сохраняется
 - `prompt.original.txt` — исходная формулировка задачи
-- `prompt.refined.json` — очищенный ТЗ (бримф) от `llama3.1`
-- `generation.raw.md` — полный потоковый ответ `qwen2.5-coder`
+- `prompt.refined.json` — очищенный ТЗ (бримф)
+- `generation.raw.md` — полный потоковый ответ модели
 - Сгенерированные файлы проекта по блокам `<<<FILE: ...>>>`
 - `meta.json` — метаданные о генерации
 
@@ -59,4 +74,5 @@ node ./bin/torexxx-agent.js new --host http://localhost:11434
 
 ## Примечания
 - Если Ollama не запущен или модели не скачаны, агент сообщит об ошибке подключения.
+- Для OpenRouter требуется валидный `OPENROUTER_API_KEY`. Модели задавайте флагами `--model-refine` и `--model-codegen`.
 - Весь UX выполнен в терминальном стиле с анимациями (спиннеры, градиенты, стриминг токенов).

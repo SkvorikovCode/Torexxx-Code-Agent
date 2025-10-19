@@ -1,4 +1,5 @@
-import { chat } from './ollama.js';
+import { chat as ollamaChat } from './ollama.js';
+import { chat as openrouterChat } from './openrouter.js';
 
 const system = `Вы — элитный кодер. Сгенерируйте минимально жизнеспособный проект по спецификации.
 Формат вывода — ТОЛЬКО последовательность файлов в блоках:
@@ -18,7 +19,7 @@ const system = `Вы — элитный кодер. Сгенерируйте м�
 - код должен быть аккуратным и завершённым
 `;
 
-export async function generateCode(spec, { host, onToken, onFileStart } = {}) {
+export async function generateCode(spec, { host, provider = 'ollama', apiKey, modelCodegen, onToken, onFileStart } = {}) {
   const deliverables = Array.from(new Set([
     ...((spec?.deliverables || []).map(d => (typeof d === 'string' ? d : d.name)).filter(Boolean)),
     ...((spec?.files || []).map(f => (typeof f === 'string' ? f : f.name)).filter(Boolean)),
@@ -30,8 +31,11 @@ export async function generateCode(spec, { host, onToken, onFileStart } = {}) {
   let watchBuf = '';
   const seen = new Set();
 
-  const { content } = await chat({
-    model: 'codellama-7b-qml',
+  const useChat = provider === 'openrouter' ? openrouterChat : ollamaChat;
+  const model = modelCodegen || (provider === 'openrouter' ? (process.env.OR_MODEL_CODEGEN || 'qwen/qwen3-coder:free') : 'codellama-7b-qml');
+
+  const { content } = await useChat({
+    model,
     messages: [
       { role: 'system', content: system },
       { role: 'user', content: user }
@@ -39,21 +43,17 @@ export async function generateCode(spec, { host, onToken, onFileStart } = {}) {
     stream: true,
     options: { temperature: 0.2 },
     host,
+    apiKey,
     onToken: (t) => {
-      // Прокидываем наружу, если нужно (можно оставить пустым для тихого режима)
       onToken?.(t);
-      // Отслеживаем появление новых файлов в стриме
       watchBuf += t;
-      // Ищем маркер начала файла и имя
       while (true) {
         const idx = watchBuf.indexOf('<<<FILE:');
         if (idx === -1) {
-          // держим последний хвост, чтобы маркер не затерялся на границе токенов
           if (watchBuf.length > 256) watchBuf = watchBuf.slice(-256);
           break;
         }
         const after = idx + '<<<FILE:'.length;
-        // поддержка как '>>>' так и '>>' в заголовке
         let end = watchBuf.indexOf('>>>', after);
         let headerTokenLen = 3;
         if (end === -1) {
@@ -61,7 +61,6 @@ export async function generateCode(spec, { host, onToken, onFileStart } = {}) {
           headerTokenLen = 2;
         }
         if (end === -1) {
-          // неполный заголовок файла, ждём следующие токены
           watchBuf = watchBuf.slice(idx);
           break;
         }
@@ -70,7 +69,6 @@ export async function generateCode(spec, { host, onToken, onFileStart } = {}) {
           seen.add(path);
           onFileStart?.(path);
         }
-        // очистим обработанный сегмент, чтобы не триггерить повторно
         watchBuf = watchBuf.slice(end + headerTokenLen);
       }
     },

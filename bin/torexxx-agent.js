@@ -13,7 +13,7 @@ import { saveProjectArtifacts } from '../src/save.js';
 const program = new Command();
 program
   .name('torexxx-agent')
-  .description('LLM Ollama агент: чистка промта (llama3.1) и генерация кода (qwen2.5-coder)')
+  .description('LLM агент: чистка промта и генерация кода (Ollama/OpenRouter)')
   .version('0.1.0');
 
 program
@@ -21,6 +21,10 @@ program
   .description('Создать новый проект из текстовой задачи')
   .option('-p, --prompt <text>', 'Задача на написание кода')
   .option('--host <url>', 'Ollama host', process.env.OLLAMA_HOST || 'http://localhost:11434')
+  .option('--provider <name>', 'Провайдер LLM: ollama | openrouter', process.env.LLM_PROVIDER || 'ollama')
+  .option('--openrouter-key <key>', 'OPENROUTER_API_KEY', process.env.OPENROUTER_API_KEY)
+  .option('--model-refine <name>', 'Модель для нормализации промта')
+  .option('--model-codegen <name>', 'Модель для генерации кода')
   .option('--editor', 'Открыть системный редактор для ввода многострочного ТЗ')
   .action(async (opts) => {
     renderHeader();
@@ -40,7 +44,7 @@ program
     const spinner1 = ora('Подготавливаю идеальный технический бриф…').start();
     let spec;
     try {
-      spec = await refinePrompt(userTask, { host: opts.host });
+      spec = await refinePrompt(userTask, { host: opts.host, provider: opts.provider, apiKey: opts.openrouterKey, modelRefine: opts.modelRefine });
       spinner1.succeed('Готово: получен структурированный бриф');
     } catch (err) {
       spinner1.fail('Ошибка при нормализации промта');
@@ -64,10 +68,11 @@ program
     try {
       rawOutput = await generateCode(spec, {
         host: opts.host,
-        // Тихий режим: не печатать токены
+        provider: opts.provider,
+        apiKey: opts.openrouterKey,
         onToken: () => {},
-        // Сообщать этапы по мере появления файлов
-        onFileStart: (filePath) => stageUpdate(spinner2, `Генерирую: ${filePath}`)
+        onFileStart: (filePath) => stageUpdate(spinner2, `Генерирую: ${filePath}`),
+        modelCodegen: opts.modelCodegen,
       });
       spinner2.succeed('Код сгенерирован');
     } catch (err) {

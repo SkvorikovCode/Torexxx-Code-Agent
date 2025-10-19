@@ -1,6 +1,7 @@
-import { chat } from './ollama.js';
+import { chat as ollamaChat } from './ollama.js';
+import { chat as openrouterChat } from './openrouter.js';
 
-export async function refinePrompt(originalTask, { host } = {}) {
+export async function refinePrompt(originalTask, { host, provider = 'ollama', apiKey, modelRefine } = {}) {
   const system = `Ты — инженер промтов для задач генерации кода.
 Твоя цель: превратить свободный запрос пользователя в чёткое техническое ТЗ.
 Выходной формат — строго JSON с полями:
@@ -13,8 +14,11 @@ export async function refinePrompt(originalTask, { host } = {}) {
 - deliverables: артефакты и ожидаемый результат
 Никаких комментариев вне JSON.`;
 
-  const { content } = await chat({
-    model: 'llama3.1:latest',
+  const useChat = provider === 'openrouter' ? openrouterChat : ollamaChat;
+  const model = modelRefine || (provider === 'openrouter' ? (process.env.OR_MODEL_REFINE || 'qwen/qwen3-coder:free') : 'llama3.1:latest');
+
+  const { content } = await useChat({
+    model,
     messages: [
       { role: 'system', content: system },
       { role: 'user', content: originalTask }
@@ -22,7 +26,8 @@ export async function refinePrompt(originalTask, { host } = {}) {
     stream: false,
     format: 'json',
     options: { temperature: 0.2 },
-    host,
+    host, // используется только для Ollama
+    apiKey, // используется только для OpenRouter
   });
 
   let spec;
