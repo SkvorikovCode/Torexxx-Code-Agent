@@ -43,6 +43,7 @@ logs/
 *.safetensors
 models/
 checkpoints/
+free-models.md
 
 # Environment
 .env
