@@ -42,7 +42,7 @@ program
       userTask = String(task || '').trim();
     }
 
-    // Дружелюбный выбор провайдера и ключа
+    // Автоопределение провайдера + автосохранение настроек
     const cfg = await loadConfig();
     let provider = opts.provider || cfg.provider || process.env.LLM_PROVIDER;
     let openrouterKey = opts.openrouterKey || cfg.openrouterKey || process.env.OPENROUTER_API_KEY;
@@ -50,56 +50,31 @@ program
 
     if (!provider) {
       const ollamaAvailable = await ensureOllamaUp(host);
-      const hasOR = !!openrouterKey;
-      const defaultChoice = ollamaAvailable && !hasOR ? 'ollama' : 'openrouter';
-      const { prov } = await inquirer.prompt({
-        name: 'prov',
-        type: 'list',
-        message: 'Выберите провайдера LLM:',
-        choices: [
-          { name: 'Ollama (локально)', value: 'ollama' },
-          { name: 'OpenRouter (облако)', value: 'openrouter' },
-        ],
-        default: defaultChoice,
-      });
-      provider = prov;
+      if (ollamaAvailable) {
+        provider = 'ollama';
+      } else if (openrouterKey) {
+        provider = 'openrouter';
+      } else {
+        const { key } = await inquirer.prompt({
+          name: 'key',
+          type: 'password',
+          message: 'Ollama недоступен. Введите OPENROUTER_API_KEY:',
+          mask: '*',
+        });
+        if (key && String(key).trim()) {
+          openrouterKey = String(key).trim();
+          provider = 'openrouter';
+        } else {
+          console.error(chalk.red('Нет доступного провайдера: запустите Ollama или укажите OPENROUTER_API_KEY.'));
+          process.exit(1);
+        }
+      }
     }
 
-    if (provider === 'openrouter' && !openrouterKey) {
-      const { key } = await inquirer.prompt({
-        name: 'key',
-        type: 'password',
-        message: 'Введите OPENROUTER_API_KEY:',
-        mask: '*',
-      });
-      openrouterKey = key;
-      const { save } = await inquirer.prompt({
-        name: 'save',
-        type: 'confirm',
-        message: 'Сохранить ключ в конфиге (~/.torexxx-agent)?',
-        default: true,
-      });
-      if (save) await saveConfig({ ...cfg, provider, openrouterKey, ollamaHost: host });
-    } else if (!cfg.provider) {
-      const { saveProv } = await inquirer.prompt({
-        name: 'saveProv',
-        type: 'confirm',
-        message: 'Запомнить выбранного провайдера по умолчанию?',
-        default: true,
-      });
-      if (saveProv) await saveConfig({ ...cfg, provider, ollamaHost: host });
-    }
-
-    // Если выбрали Ollama и хост отличается от сохранённого — предложим сохранить
-    if (provider === 'ollama' && cfg.ollamaHost !== host) {
-      const { saveHost } = await inquirer.prompt({
-        name: 'saveHost',
-        type: 'confirm',
-        message: `Сохранить Ollama host (${host}) в конфиге?`,
-        default: true,
-      });
-      if (saveHost) await saveConfig({ ...cfg, provider, openrouterKey, ollamaHost: host });
-    }
+    // Сохраняем актуальные настройки без лишних вопросов
+    try {
+      await saveConfig({ ...cfg, provider, openrouterKey, ollamaHost: host });
+    } catch {}
 
     console.log(chalk.gray('\n• Нормализую промт через Torexxx Mini'));
     const spinner1 = ora('Подготавливаю идеальный технический бриф…').start();
