@@ -29,15 +29,29 @@ export async function generateCode(spec, { apiKey, modelCodegen, modelsCodegen, 
 - включите README.md с инструкциями
 - при необходимости показывайте package.json / requirements.txt
 - используйте короткие, самодостаточные примеры, которые запускаются сразу
-- код должен быть аккуратным и завершённым`; 
+- код должен быть аккуратным и завершённым`;
 
+  // Нормализация списков, чтобы избежать ошибок .map/.join на не-массивах
+  const asArray = (v) => {
+    if (v == null) return [];
+    if (Array.isArray(v)) return v;
+    if (typeof v === 'string') return [v];
+    if (typeof v === 'object') return [v];
+    return [String(v)];
+  };
+
+  const deliverablesSrc = asArray(spec?.deliverables);
+  const filesSrc = asArray(spec?.files);
   const deliverables = Array.from(new Set([
-    ...((spec?.deliverables || []).map(d => (typeof d === 'string' ? d : d.name)).filter(Boolean)),
-    ...((spec?.files || []).map(f => (typeof f === 'string' ? f : f.name)).filter(Boolean)),
+    ...(deliverablesSrc.map(d => (typeof d === 'string' ? d : d?.name)).filter(Boolean)),
+    ...(filesSrc.map(f => (typeof f === 'string' ? f : f?.name)).filter(Boolean)),
   ]));
   const filesList = deliverables.length ? deliverables.join(', ') : 'index.html, styles.css, script.js';
 
-  const user = `ТЗ:\nTITLE: ${spec.title || ''}\nOVERVIEW: ${Array.isArray(spec.overview) ? spec.overview.join(' ') : (spec.overview || '')}\nREQUIREMENTS:\n- ${(spec.requirements || []).join('\n- ')}\nCONSTRAINTS:\n- ${(spec.constraints || []).join('\n- ')}\n\nСгенерируй ТОЛЬКО файлы: ${filesList}. Каждый файл строго в формате блоков:\n\n<<<FILE: relative/path>>>\n\`\`\`<lang or text>\n...содержимое файла...\n\`\`\`\n<<<END FILE>>>\n\nНачинай немедленно с первого файла из списка.`;
+  const reqs = asArray(spec?.requirements).map(r => String(r));
+  const cons = asArray(spec?.constraints).map(r => String(r));
+
+  const user = `ТЗ:\nTITLE: ${spec.title || ''}\nOVERVIEW: ${Array.isArray(spec.overview) ? spec.overview.join(' ') : (spec.overview || '')}\nREQUIREMENTS:\n- ${reqs.join('\n- ')}\nCONSTRAINTS:\n- ${cons.join('\n- ')}\n\nСгенерируй ТОЛЬКО файл-блоки для: ${filesList}. Каждый файл строго в формате блоков:\n\n<<<FILE: relative/path>>>\n\`\`\`<lang or text>\n...содержимое файла...\n\`\`\`\n<<<END FILE>>>\n\nНачинай немедленно с первого файла из списка.`;
 
   const errors = [];
 
