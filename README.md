@@ -56,6 +56,7 @@ node ./bin/torexxx-agent.js new \
 - `OPENROUTER_REFERER` — HTTP Referer (рекомендовано)
 - `OPENROUTER_TITLE` — заголовок приложения (рекомендовано)
 - `OR_MODEL_REFINE` / `OR_MODEL_CODEGEN` — переопределить модели для OpenRouter
+- `OR_MODEL_REFINE_FALLBACK` — запасная модель для нормализации промта (используется при 429/403)
 - `OR_MODEL_CODEGEN_FALLBACK` — запасная модель для кодогенерации (OpenRouter)
 - `OPENROUTER_RETRY_MS` — задержка перед повтором при 429 (мс, по умолчанию 2000)
 
