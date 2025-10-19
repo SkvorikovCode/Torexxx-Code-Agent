@@ -143,6 +143,28 @@ npm run dev # или node index.js
   - Windows: `npm run build:win` → `dist/torexxx-agent.exe`.
   - Все сразу: `npm run build:all`.
 
+## Шаблоны (YAML)
+- Расположение: `templates/*.yaml` с ключом `template` и полями `name`, `description`, `stack`, `structure`, `rules`, `style`, `example_prompt`.
+- Назначение: дополняют `spec` после нормализации — `rules`/`style`/`stack` → `constraints`, `structure` → `files`, `description` → добавляется к `overview`.
+- Выбор шаблонов:
+  - CLI: `--templates "web_landing,api_backend"` или пути `--templates "templates/web_landing.yaml"`.
+  - Env: `AGENT_TEMPLATES=web_landing,api_backend`.
+- Комбинирование: несколько шаблонов объединяются; дубликаты удаляются.
+- Пример:
+```
+template:
+  name: web_landing
+  stack:
+    - next.js
+    - tailwindcss
+  structure:
+    - "src/app/layout.tsx — общая структура"
+    - "src/components/ — UI-компоненты"
+  rules:
+    - "Семантическая верстка"
+```
+- Преобразование: добавит `stack:next.js`, `stack:tailwindcss` в `constraints` и пути `src/app/layout.tsx`, `src/components/` в `files`.
+
 ## Примечания
 - Для OpenRouter требуется валидный ключ: установите `OPENROUTER_API_KEY` или используйте `OPENROUTER_EMBEDDED_KEY`.
 - Пулы моделей лучше всего начинать с надёжной пары: `qwen/qwen3-coder:free` → `mistralai/mistral-small:free`.

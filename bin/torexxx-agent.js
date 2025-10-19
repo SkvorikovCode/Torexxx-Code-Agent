@@ -11,6 +11,7 @@ import { generateCode } from '../src/codegen.js';
 import { saveProjectArtifacts } from '../src/save.js';
 import dotenv from 'dotenv';
 import path from 'path';
+import { loadTemplates, applyTemplatesToSpec } from '../src/templates.js';
 
 // Load env from .env then .env.local (local overrides)
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
@@ -32,6 +33,7 @@ program
   .option('--model-codegen <name>', 'Модель для генерации кода')
   .option('--models-codegen <list>', 'Пул моделей для кодогенерации (через запятую)')
   .option('--editor', 'Открыть системный редактор для ввода многострочного ТЗ')
+  .option('--templates <list>', 'Список YAML шаблонов (имена или пути, через запятую)')
   .action(async (opts) => {
     renderHeader();
 
@@ -75,6 +77,15 @@ program
       process.exit(1);
     }
 
+    // Применение YAML шаблонов, если указаны
+    const tplList = parseList(opts.templates || process.env.AGENT_TEMPLATES);
+    let appliedTemplates = [];
+    if (tplList && tplList.length) {
+      const loaded = await loadTemplates(tplList);
+      appliedTemplates = loaded.map(x => x.name);
+      spec = applyTemplatesToSpec(spec, loaded);
+    }
+
     const specBox = boxen(chalk.bold(spec.title || 'Технический бриф') + '\n' + chalk.gray(spec.overview || '') + '\n\n' + chalk.white('Требования:') + '\n' + (spec.requirements || []).map((r, i) => `  ${i+1}. ${r}`).join('\n'), {
       padding: 1,
       margin: 1,
@@ -83,6 +94,10 @@ program
       titleAlignment: 'center'
     });
     console.log(specBox);
+
+    if (appliedTemplates.length) {
+      console.log(chalk.gray('• Применены шаблоны: ') + appliedTemplates.join(', '));
+    }
 
     console.log(chalk.gray('\n• Генерирую код через Torexxx Mini Coder'));
     const spinner2 = ora('Запускаю генерацию проекта…').start();
