@@ -1,9 +1,10 @@
 const defaultBaseURL = process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
+const EMBEDDED_OPENROUTER_KEY = process.env.OPENROUTER_EMBEDDED_KEY || '';
 
 // Unified chat interface compatible with src/ollama.js
-export async function chat({ model, messages, apiKey = process.env.OPENROUTER_API_KEY, baseURL = defaultBaseURL, stream = true, format, options = {}, onToken }) {
+export async function chat({ model, messages, apiKey = (process.env.OPENROUTER_API_KEY || EMBEDDED_OPENROUTER_KEY), baseURL = defaultBaseURL, stream = true, format, options = {}, onToken }) {
   if (!apiKey) {
-    throw new Error('Отсутствует OPENROUTER_API_KEY. Установите переменную окружения или передайте apiKey.');
+    throw new Error('Отсутствует OPENROUTER_API_KEY. Установите переменную окружения, зашьйте ключ (OPENROUTER_EMBEDDED_KEY) или передайте apiKey.');
   }
 
   const body = {
@@ -45,41 +46,31 @@ export async function chat({ model, messages, apiKey = process.env.OPENROUTER_AP
 
   // Streaming (SSE) parsing
   let full = '';
-  const decoder = new TextDecoder('utf-8');
   const reader = res.body.getReader();
-  let buf = '';
+  const decoder = new TextDecoder('utf-8');
+  let buffer = '';
 
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
-    buf += decoder.decode(value, { stream: true });
+    buffer += decoder.decode(value, { stream: true });
 
-    // Split server-sent events by blank lines
-    const events = buf.split('\n\n');
-    // keep last partial event in buffer
-    buf = events.pop();
-
-    for (const evt of events) {
-      const lines = evt.split('\n');
-      for (const line of lines) {
-        if (!line.startsWith('data:')) continue;
-        const dataStr = line.slice('data:'.length).trim();
-        if (!dataStr) continue;
-        if (dataStr === '[DONE]') {
-          // End of stream
-          buf = '';
-          break;
+    const lines = buffer.split('\n');
+    buffer = lines.pop();
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('data:')) continue;
+      const jsonStr = trimmed.replace(/^data:\s*/, '');
+      if (jsonStr === '[DONE]') continue;
+      try {
+        const evt = JSON.parse(jsonStr);
+        const token = evt?.choices?.[0]?.delta?.content ?? evt?.choices?.[0]?.text ?? '';
+        if (token) {
+          full += token;
+          onToken?.(token);
         }
-        try {
-          const json = JSON.parse(dataStr);
-          const token = json?.choices?.[0]?.delta?.content ?? json?.choices?.[0]?.text ?? '';
-          if (token) {
-            full += token;
-            onToken?.(token);
-          }
-        } catch (e) {
-          // ignore malformed JSON lines
-        }
+      } catch (e) {
+        // ignore parse error
       }
     }
   }
