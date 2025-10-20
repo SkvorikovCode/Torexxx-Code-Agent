@@ -19,11 +19,31 @@ const ASCII_ART = `
 `;
 
 const MINI_ASCII = `
-╔╦╗╔═╗╦═╗╔═╗═╗ ╦═╗ ╦═╗ ╦
- ║ ║ ║╠╦╝║╣ ╔╩╦╝╔╩╦╝╔╩╦╝
- ╩ ╚═╝╩╚═╚═╝╩ ╚═╩ ╚═╩ ╚═
+  _______ ____  _____  ________   ____   ____   __
+ |__   __/ __ \|  __ \|  ____\ \ / /\ \ / /\ \ / /
+    | | | |  | | |__) | |__   \ V /  \ V /  \ V / 
+    | | | |  | |  _  /|  __|   > <    > <    > <  
+    | | | |__| | | \ \| |____ / . \  / . \  / . \ 
+    |_|  \____/|_|  \_\______/_/ \_\/_/ \_\/_/ \_\
+                                                  
+                                                  
     ⚡ CODE AGENT ⚡
 `;
+
+// Утилиты для центрирования и измерения ширины строк
+function stripAnsi(input) {
+  return String(input).replace(/\x1B\[[0-9;]*m/g, '');
+}
+function maxLineWidth(text) {
+  return Math.max(...text.split('\n').map(line => stripAnsi(line).length));
+}
+function centerLines(text, width) {
+  return text.split('\n').map(line => {
+    const len = stripAnsi(line).length;
+    const pad = Math.max(0, Math.floor((width - len) / 2));
+    return ' '.repeat(pad) + line;
+  }).join('\n');
+}
 
 // Функция для создания анимированного градиента
 function createAnimatedGradient(text, frame = 0) {
@@ -50,6 +70,7 @@ export function renderHeader(animated = false) {
   
   const isSmallTerminal = process.stdout.columns < 80;
   const art = isSmallTerminal ? MINI_ASCII : ASCII_ART;
+  const width = maxLineWidth(art);
   
   if (animated) {
     let frame = 0;
@@ -58,12 +79,17 @@ export function renderHeader(animated = false) {
       const coloredArt = createAnimatedGradient(art, frame);
       const subtitle = chalk.gray.italic('🚀 LLM CLI для чистки промта и генерации проекта 🚀');
       const version = chalk.dim('v0.1.0');
+      const bar = chalk.cyan.bold('═'.repeat(Math.max(40, width)));
+      
+      const content = [
+        centerLines(coloredArt, width),
+        centerLines(bar, width),
+        centerLines(subtitle, width),
+        centerLines(version, width)
+      ].join('\n');
       
       console.log(boxen(
-        coloredArt + '\n' + 
-        chalk.cyan.bold('                    ════════════════════════════════════════') + '\n' +
-        '                    ' + subtitle + '\n' +
-        '                    ' + chalk.gray('                    ') + version,
+        content,
         {
           padding: { top: 1, bottom: 1, left: 2, right: 2 },
           margin: { top: 1, bottom: 1, left: 1, right: 1 },
@@ -90,6 +116,7 @@ function renderStaticHeader() {
   const isSmallTerminal = process.stdout.columns < 80;
   const art = isSmallTerminal ? MINI_ASCII : ASCII_ART;
   
+  const width = maxLineWidth(art);
   const coloredArt = gradient.cristal(art);
   const subtitle = chalk.gray.italic('🚀 LLM CLI для чистки промта и генерации проекта 🚀');
   const version = chalk.dim('v0.1.0');
@@ -98,13 +125,19 @@ function renderStaticHeader() {
     chalk.green('✓ Поддержка 20+ технологий'),
     chalk.green('✓ Интеллектуальная генерация кода')
   ].join('  ');
+  const bar = chalk.cyan.bold('═'.repeat(Math.max(40, width)));
+  
+  const content = [
+    centerLines(coloredArt, width),
+    centerLines(bar, width),
+    centerLines(subtitle, width),
+    centerLines(version, width),
+    '',
+    centerLines(features, width)
+  ].join('\n');
   
   console.log(boxen(
-    coloredArt + '\n' + 
-    chalk.cyan.bold('                    ════════════════════════════════════════') + '\n' +
-    '                    ' + subtitle + '\n' +
-    '                    ' + chalk.gray('                    ') + version + '\n\n' +
-    '  ' + features,
+    content,
     {
       padding: { top: 1, bottom: 1, left: 2, right: 2 },
       margin: { top: 1, bottom: 1, left: 1, right: 1 },
