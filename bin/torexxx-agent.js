@@ -347,6 +347,55 @@ async function main() {
   let apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_EMBEDDED_KEY || '';
   let mode = 'cli';
 
+  // Валидация входных параметров
+  if (originalTask && typeof originalTask !== 'string') {
+    renderError(
+      'Некорректный формат задачи',
+      [
+        'Задача должна быть строкой',
+        'Используйте кавычки для задач с пробелами',
+        'Пример: "Создай лендинг для IT-компании"'
+      ]
+    );
+    process.exit(1);
+  }
+
+  if (originalTask && originalTask.trim().length < 3) {
+    renderError(
+      'Слишком короткая задача',
+      [
+        'Задача должна содержать минимум 3 символа',
+        'Опишите что вы хотите создать более подробно',
+        'Пример: "Создай простой сайт-визитку"'
+      ]
+    );
+    process.exit(1);
+  }
+
+  if (originalTask && originalTask.length > 1000) {
+    renderError(
+      'Слишком длинная задача',
+      [
+        'Задача не должна превышать 1000 символов',
+        'Попробуйте сократить описание',
+        'Сосредоточьтесь на основных требованиях'
+      ]
+    );
+    process.exit(1);
+  }
+
+  if (!apiKey) {
+    renderError(
+      'Отсутствует API ключ',
+      [
+        'Создайте файл .env в корне проекта',
+        'Добавьте строку: OPENROUTER_API_KEY=ваш_ключ',
+        'Получите ключ на https://openrouter.ai'
+      ]
+    );
+    process.exit(1);
+  }
+
   if (!originalTask) {
     const w = await runWizard();
     originalTask = w.originalTask;
