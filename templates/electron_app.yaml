@@ -1,0 +1,40 @@
+template:
+  name: electron_app
+  description: "Кроссплатформенное десктопное приложение на Electron с современным UI."
+  stack:
+  - electron
+  - typescript
+  - react / vue
+  - webpack
+  - electron-builder (packaging)
+  - electron-updater (auto-updates)
+  - node-sqlite3 (local database)
+  structure:
+  - "src/main/ — основной процесс Electron"
+  - "src/renderer/ — интерфейс приложения"
+  - "src/preload/ — preload скрипты для безопасности"
+  - "src/shared/ — общие типы и утилиты"
+  - "assets/ — иконки и ресурсы"
+  - "build/ — конфигурация сборки"
+  - "webpack.config.js — настройки Webpack"
+  - "electron-builder.json — настройки упаковки"
+  - "package.json — зависимости и скрипты"
+  rules:
+  - "Использовать contextIsolation для безопасности"
+  - "Создавать preload скрипты для IPC коммуникации"
+  - "Настроить hot reload для разработки"
+  - "Добавить автоматические обновления"
+  - "Создать нативные меню и диалоги"
+  - "Настроить упаковку для разных платформ"
+  - "Использовать TypeScript для типизации"
+  - "Обрабатывать события жизненного цикла"
+  style:
+  - "Следовать нативным UI паттернам ОС"
+  - "Создавать адаптивный интерфейс"
+  - "Использовать системные шрифты и цвета"
+  - "Добавить темную и светлую темы"
+  example_prompt: |
+    Создай Electron приложение для управления заметками.
+    Нужны функции: создание/редактирование заметок, поиск, категории,
+    синхронизация с облаком, экспорт в PDF.
+    Используй React для UI, SQLite для локальной БД, TypeScript для типизации.

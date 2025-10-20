@@ -1,0 +1,47 @@
+template:
+  name: express_api
+  description: "RESTful API на Express.js с MongoDB, JWT аутентификацией и валидацией."
+  stack:
+  - express
+  - mongodb
+  - mongoose
+  - jsonwebtoken
+  - bcryptjs
+  - joi (validation)
+  - cors
+  - helmet (security)
+  - morgan (logging)
+  - dotenv
+  - nodemon (dev)
+  structure:
+  - "src/app.js — основной файл приложения"
+  - "src/server.js — запуск сервера"
+  - "src/routes/ — маршруты API"
+  - "src/controllers/ — контроллеры для обработки запросов"
+  - "src/models/ — Mongoose модели"
+  - "src/middleware/ — промежуточные обработчики"
+  - "src/utils/ — вспомогательные функции"
+  - "src/config/ — конфигурация базы данных"
+  - "src/validators/ — схемы валидации Joi"
+  - ".env — переменные окружения"
+  - "package.json — зависимости и скрипты"
+  - "README.md — документация API"
+  rules:
+  - "Использовать MVC архитектуру"
+  - "Валидировать все входящие данные через Joi"
+  - "Хешировать пароли с помощью bcryptjs"
+  - "Использовать JWT для аутентификации"
+  - "Обрабатывать ошибки централизованно"
+  - "Логировать запросы через Morgan"
+  - "Настроить CORS и безопасность через Helmet"
+  - "Использовать async/await для асинхронных операций"
+  style:
+  - "RESTful принципы для API endpoints"
+  - "Консистентные HTTP статус коды"
+  - "Структурированные JSON ответы"
+  - "Понятные сообщения об ошибках"
+  example_prompt: |
+    Создай Express.js API для блог-платформы.
+    Нужны endpoints: регистрация/авторизация пользователей, CRUD для постов,
+    комментарии к постам, загрузка изображений.
+    Используй MongoDB для хранения, JWT для аутентификации.

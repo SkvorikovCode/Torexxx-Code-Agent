@@ -1,0 +1,39 @@
+template:
+  name: chrome_extension
+  description: "Расширение для Chrome с современным UI и взаимодействием с веб-страницами."
+  stack:
+  - manifest v3
+  - typescript
+  - webpack
+  - chrome apis
+  - tailwindcss
+  - react (optional)
+  structure:
+  - "manifest.json — конфигурация расширения"
+  - "src/background/ — service worker скрипты"
+  - "src/content/ — content scripts для веб-страниц"
+  - "src/popup/ — popup интерфейс"
+  - "src/options/ — страница настроек"
+  - "src/shared/ — общие утилиты и типы"
+  - "public/ — статические файлы и иконки"
+  - "webpack.config.js — сборка проекта"
+  - "package.json — зависимости и скрипты"
+  rules:
+  - "Использовать Manifest V3 для совместимости"
+  - "Типизировать Chrome APIs через TypeScript"
+  - "Минимизировать разрешения в manifest.json"
+  - "Использовать message passing для коммуникации"
+  - "Обрабатывать ошибки и edge cases"
+  - "Настроить hot reload для разработки"
+  - "Создать адаптивный popup интерфейс"
+  - "Добавить иконки для разных размеров"
+  style:
+  - "Следовать Material Design принципам"
+  - "Использовать Chrome UI patterns"
+  - "Создавать доступные интерфейсы"
+  - "Оптимизировать для разных размеров экрана"
+  example_prompt: |
+    Создай Chrome расширение для управления паролями.
+    Нужны функции: генерация паролей, сохранение в локальное хранилище,
+    автозаполнение форм, popup с настройками.
+    Используй TypeScript, Tailwind для стилей, React для UI.

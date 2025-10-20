@@ -1,8 +1,9 @@
 memory:
-  version: 3
+  version: 4
   settings:
     auto_add_limit: 3 # Максимум шаблонов для автоподключения
-    weight_default: 1 # Базовый вес, если не указан явно
+    weight_default: 1 # Вес по умолчанию
+    max_tags_per_template: 10 # Максимум тегов, влияющих на приоритет
 
   templates:
   - name: web_landing_plain
@@ -15,6 +16,8 @@ memory:
       css: 1
       vanilla-js: 1
       minimal: 2
+      responsive: 2
+      seo: 1
     synonyms:
     - "лендинг"
     - "landing page"
@@ -29,6 +32,314 @@ memory:
     - "Должен быть адаптивным."
     - "Не использовать внешние библиотеки UI."
 
+  - name: vue_app
+    tags:
+      vue: 3
+      frontend: 2
+      spa: 2
+      typescript: 2
+      vite: 2
+      component: 1
+      reactive: 1
+      modern: 2
+    synonyms:
+    - "vue приложение"
+    - "vue.js"
+    - "вью"
+    - "spa приложение"
+    description: "Современное веб-приложение на Vue.js с Vite и TypeScript."
+    stack: [ Vue.js, Vite, TypeScript ]
+    style: [ modern, component-based ]
+    structure: [ components, views, stores, router ]
+    rules:
+    - "Использовать Composition API."
+    - "Типизировать через TypeScript."
+
+  - name: nextjs_app
+    tags:
+      nextjs: 3
+      react: 2
+      ssr: 3
+      fullstack: 2
+      prisma: 2
+      postgresql: 1
+      typescript: 2
+      modern: 2
+    synonyms:
+    - "next.js"
+    - "некст"
+    - "react ssr"
+    - "фуллстек приложение"
+    description: "Полнофункциональное приложение на Next.js с Prisma и PostgreSQL."
+    stack: [ Next.js, React, Prisma, PostgreSQL ]
+    style: [ modern, fullstack ]
+    structure: [ pages, components, api, database ]
+    rules:
+    - "Использовать App Router."
+    - "Настроить SSR/SSG."
+
+  - name: express_api
+    tags:
+      express: 3
+      backend: 3
+      api: 2
+      rest: 2
+      mongodb: 2
+      node: 1
+      server: 1
+      crud: 1
+    synonyms:
+    - "экспресс"
+    - "express api"
+    - "node.js api"
+    - "бэкенд"
+    description: "REST API сервер на Express.js с MongoDB."
+    stack: [ Express.js, MongoDB, Node.js ]
+    style: [ clean, modular ]
+    structure: [ routes, controllers, models, middleware ]
+    rules:
+    - "Использовать модульную архитектуру."
+    - "Добавить валидацию данных."
+
+  - name: flutter_app
+    tags:
+      flutter: 3
+      mobile: 3
+      dart: 2
+      cross-platform: 2
+      ios: 1
+      android: 1
+      native: 1
+    synonyms:
+    - "флаттер"
+    - "мобильное приложение"
+    - "кроссплатформа"
+    - "дарт"
+    description: "Кроссплатформенное мобильное приложение на Flutter."
+    stack: [ Flutter, Dart ]
+    style: [ material, cupertino ]
+    structure: [ screens, widgets, services, models ]
+    rules:
+    - "Следовать Material Design."
+    - "Использовать BLoC паттерн."
+
+  - name: django_api
+    tags:
+      django: 3
+      python: 2
+      backend: 2
+      rest: 2
+      api: 2
+      orm: 1
+      admin: 1
+    synonyms:
+    - "джанго"
+    - "python api"
+    - "питон бэкенд"
+    - "django rest"
+    description: "REST API на Django с админ-панелью."
+    stack: [ Django, Python, DRF ]
+    style: [ pythonic, batteries-included ]
+    structure: [ apps, models, views, serializers ]
+    rules:
+    - "Следовать Django conventions."
+    - "Использовать DRF для API."
+
+  - name: fastapi_app
+    tags:
+      fastapi: 3
+      python: 2
+      backend: 2
+      api: 2
+      async: 2
+      sqlalchemy: 2
+      modern: 2
+    synonyms:
+    - "фастапи"
+    - "fast api"
+    - "python async"
+    - "современный python"
+    description: "Современный асинхронный API на FastAPI с SQLAlchemy."
+    stack: [ FastAPI, SQLAlchemy, Python ]
+    style: [ modern, async ]
+    structure: [ routers, models, schemas, database ]
+    rules:
+    - "Использовать async/await."
+    - "Добавить автодокументацию."
+
+  - name: chrome_extension
+    tags:
+      chrome: 3
+      extension: 3
+      browser: 2
+      javascript: 1
+      manifest: 1
+      popup: 1
+    synonyms:
+    - "расширение chrome"
+    - "браузерное расширение"
+    - "хром расширение"
+    - "плагин браузера"
+    description: "Расширение для браузера Chrome с современным функционалом."
+    stack: [ JavaScript, Chrome APIs ]
+    style: [ minimal, functional ]
+    structure: [ popup, background, content, options ]
+    rules:
+    - "Следовать Manifest V3."
+    - "Минимизировать разрешения."
+
+  - name: discord_bot
+    tags:
+      discord: 3
+      bot: 3
+      chat: 2
+      automation: 1
+      slash-commands: 2
+      node: 1
+    synonyms:
+    - "дискорд бот"
+    - "бот дискорд"
+    - "discord.js"
+    - "чат бот"
+    description: "Discord бот с slash-командами и модерацией."
+    stack: [ Discord.js, Node.js ]
+    style: [ interactive, modular ]
+    structure: [ commands, events, handlers, utils ]
+    rules:
+    - "Использовать slash команды."
+    - "Обрабатывать ошибки безопасно."
+
+  - name: electron_app
+    tags:
+      electron: 3
+      desktop: 3
+      cross-platform: 2
+      typescript: 2
+      react: 1
+      native: 1
+    synonyms:
+    - "электрон"
+    - "десктопное приложение"
+    - "настольное приложение"
+    - "кроссплатформенное приложение"
+    description: "Кроссплатформенное десктопное приложение на Electron."
+    stack: [ Electron, TypeScript, React ]
+    style: [ native, modern ]
+    structure: [ main, renderer, preload, assets ]
+    rules:
+    - "Использовать contextIsolation."
+    - "Настроить автообновления."
+
+  - name: svelte_app
+    tags:
+      svelte: 3
+      sveltekit: 2
+      frontend: 2
+      typescript: 2
+      ssr: 2
+      modern: 2
+      reactive: 1
+    synonyms:
+    - "свелт"
+    - "sveltekit"
+    - "свелт приложение"
+    - "реактивное приложение"
+    description: "Современное веб-приложение на SvelteKit с TypeScript."
+    stack: [ SvelteKit, TypeScript, Tailwind ]
+    style: [ modern, reactive ]
+    structure: [ routes, lib, stores, components ]
+    rules:
+    - "Использовать SvelteKit для роутинга."
+    - "Добавить SEO оптимизацию."
+
+  - name: react_native_app
+    tags:
+      react-native: 3
+      mobile: 3
+      react: 2
+      cross-platform: 2
+      typescript: 2
+      navigation: 1
+      redux: 1
+    synonyms:
+    - "реакт нативе"
+    - "react native"
+    - "мобильное приложение"
+    - "кроссплатформа мобайл"
+    description: "Кроссплатформенное мобильное приложение на React Native."
+    stack: [ React Native, TypeScript, Redux ]
+    style: [ native, component-based ]
+    structure: [ screens, components, navigation, store ]
+    rules:
+    - "Использовать React Navigation."
+    - "Следовать платформенным гайдлайнам."
+
+  - name: graphql_api
+    tags:
+      graphql: 3
+      apollo: 2
+      backend: 2
+      api: 2
+      typescript: 2
+      schema: 2
+      resolvers: 1
+    synonyms:
+    - "графкл"
+    - "apollo server"
+    - "graphql api"
+    - "граф апи"
+    description: "GraphQL API сервер с Apollo Server и TypeScript."
+    stack: [ Apollo Server, GraphQL, TypeScript ]
+    style: [ schema-first, type-safe ]
+    structure: [ schema, resolvers, models, services ]
+    rules:
+    - "Использовать Code First подход."
+    - "Добавить DataLoader для оптимизации."
+
+  - name: nuxt_app
+    tags:
+      nuxt: 3
+      vue: 2
+      ssr: 3
+      fullstack: 2
+      typescript: 2
+      pinia: 1
+      seo: 2
+    synonyms:
+    - "нукст"
+    - "nuxt.js"
+    - "vue ssr"
+    - "фуллстек vue"
+    description: "Полнофункциональное веб-приложение на Nuxt.js с SSR/SSG."
+    stack: [ Nuxt.js, Vue.js, TypeScript ]
+    style: [ modern, fullstack ]
+    structure: [ pages, components, layouts, server ]
+    rules:
+    - "Настроить SSR/SSG для SEO."
+    - "Использовать Composition API."
+
+  - name: golang_api
+    tags:
+      golang: 3
+      go: 3
+      backend: 2
+      api: 2
+      rest: 2
+      gin: 2
+      performance: 2
+    synonyms:
+    - "го"
+    - "golang api"
+    - "go backend"
+    - "гоу апи"
+    description: "Высокопроизводительный REST API на Go с Gin/Fiber."
+    stack: [ Go, Gin, GORM ]
+    style: [ clean, performant ]
+    structure: [ handlers, models, services, middleware ]
+    rules:
+    - "Следовать Clean Architecture."
+    - "Использовать dependency injection."
+
   - name: api_backend
     tags:
       backend: 3
@@ -37,6 +348,9 @@ memory:
       express: 2
       node: 1
       server: 1
+      json: 1
+      crud: 1
+      modular: 1
     synonyms:
     - "бэкенд"
     - "REST API"
@@ -54,8 +368,10 @@ memory:
     tags:
       bot: 3
       telegram: 2
-      chat: 1
+      chat: 2
       automation: 1
+      async: 1
+      user-interaction: 1
     synonyms:
     - "телеграм бот"
     - "бот"

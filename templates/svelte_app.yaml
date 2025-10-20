@@ -1,0 +1,41 @@
+template:
+  name: svelte_app
+  description: "Современное веб-приложение на SvelteKit с TypeScript и адаптивным дизайном."
+  stack:
+  - sveltekit
+  - typescript
+  - tailwindcss
+  - vite
+  - prisma (optional)
+  - svelte-kit/adapter-auto
+  - vitest (testing)
+  structure:
+  - "src/app.html — HTML шаблон приложения"
+  - "src/routes/ — страницы и API endpoints"
+  - "src/lib/ — переиспользуемые компоненты и утилиты"
+  - "src/stores/ — Svelte stores для состояния"
+  - "src/hooks/ — SvelteKit hooks"
+  - "static/ — статические файлы"
+  - "tests/ — тесты компонентов"
+  - "vite.config.js — конфигурация Vite"
+  - "svelte.config.js — настройки SvelteKit"
+  - "tailwind.config.js — настройки Tailwind"
+  rules:
+  - "Использовать SvelteKit для роутинга и SSR"
+  - "Типизировать компоненты через TypeScript"
+  - "Создавать реактивные stores для состояния"
+  - "Использовать Svelte transitions для анимаций"
+  - "Настроить форм-валидацию"
+  - "Добавить SEO мета-теги"
+  - "Использовать load функции для данных"
+  - "Настроить адаптер для деплоя"
+  style:
+  - "Использовать Tailwind CSS для стилизации"
+  - "Создавать компонентную архитектуру"
+  - "Следовать принципам accessibility"
+  - "Добавить темную и светлую темы"
+  example_prompt: |
+    Создай SvelteKit приложение для портфолио разработчика.
+    Нужны страницы: главная, о себе, проекты, блог, контакты.
+    Используй TypeScript для типизации, Tailwind для стилей,
+    добавь анимации переходов, форму обратной связи.
