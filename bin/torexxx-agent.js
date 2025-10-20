@@ -278,9 +278,6 @@ async function tryRefineWithRecovery(originalTask, { apiKey, spinner }) {
 // Функция для подсчета статистики проекта
 function calculateProjectStats(outputPath, templates, startTime) {
   try {
-    const fs = require('fs-extra');
-    const path = require('path');
-    
     let filesCreated = 0;
     let linesOfCode = 0;
     let totalSize = 0;
@@ -325,6 +322,7 @@ function calculateProjectStats(outputPath, templates, startTime) {
       size: totalSize
     };
   } catch (error) {
+    console.error('Ошибка при подсчете статистики:', error);
     return {
       filesCreated: 0,
       linesOfCode: 0,
@@ -466,6 +464,8 @@ async function main() {
       
       // Подсчитываем статистику
       const stats = calculateProjectStats(projPath, loaded, startTime);
+      console.log("DEBUG: projPath =", projPath);
+      console.log("DEBUG: stats =", stats);
       
       // Показываем празднование
       renderCelebration(
