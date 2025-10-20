@@ -1,0 +1,44 @@
+template:
+  name: django_api
+  description: "RESTful API на Django REST Framework с PostgreSQL и JWT аутентификацией."
+  stack:
+  - django
+  - djangorestframework
+  - postgresql
+  - psycopg2
+  - djangorestframework-simplejwt
+  - django-cors-headers
+  - celery (background tasks)
+  - redis
+  - pillow (image processing)
+  - django-filter
+  structure:
+  - "manage.py — Django управление"
+  - "config/ — настройки проекта"
+  - "apps/ — Django приложения"
+  - "apps/users/ — пользователи и аутентификация"
+  - "apps/core/ — базовые модели и утилиты"
+  - "requirements/ — зависимости для разных окружений"
+  - "static/ — статические файлы"
+  - "media/ — загруженные файлы"
+  - "templates/ — HTML шаблоны"
+  - "locale/ — переводы"
+  rules:
+  - "Использовать Django REST Framework для API"
+  - "Настроить JWT аутентификацию"
+  - "Создавать кастомные permissions и serializers"
+  - "Использовать ViewSets для CRUD операций"
+  - "Настроить пагинацию и фильтрацию"
+  - "Добавить Celery для фоновых задач"
+  - "Использовать PostgreSQL как основную БД"
+  - "Настроить CORS для фронтенда"
+  style:
+  - "Следовать Django best practices"
+  - "Использовать class-based views"
+  - "Создавать детальную документацию API"
+  - "Настроить логирование и мониторинг"
+  example_prompt: |
+    Создай Django REST API для интернет-магазина.
+    Нужны endpoints: товары, категории, корзина, заказы, пользователи.
+    Используй PostgreSQL для данных, JWT для авторизации,
+    Celery для отправки email уведомлений.

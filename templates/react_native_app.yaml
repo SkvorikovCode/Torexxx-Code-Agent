@@ -1,0 +1,42 @@
+template:
+  name: react_native_app
+  description: "Кроссплатформенное мобильное приложение на React Native с навигацией и состоянием."
+  stack:
+  - react-native
+  - typescript
+  - react-navigation
+  - redux-toolkit / zustand
+  - react-native-vector-icons
+  - react-native-async-storage
+  - react-native-reanimated
+  - expo (optional)
+  structure:
+  - "src/components/ — переиспользуемые компоненты"
+  - "src/screens/ — экраны приложения"
+  - "src/navigation/ — настройка навигации"
+  - "src/store/ — управление состоянием"
+  - "src/services/ — API и внешние сервисы"
+  - "src/utils/ — вспомогательные функции"
+  - "src/types/ — TypeScript типы"
+  - "assets/ — изображения и иконки"
+  - "android/ — нативный код Android"
+  - "ios/ — нативный код iOS"
+  rules:
+  - "Использовать React Navigation для навигации"
+  - "Настроить Redux Toolkit для состояния"
+  - "Добавить TypeScript для типизации"
+  - "Использовать Reanimated для анимаций"
+  - "Настроить AsyncStorage для локального хранения"
+  - "Добавить обработку ошибок и loading состояний"
+  - "Настроить push-уведомления"
+  - "Оптимизировать производительность списков"
+  style:
+  - "Следовать Material Design / Human Interface Guidelines"
+  - "Создавать адаптивный дизайн для разных экранов"
+  - "Использовать нативные компоненты UI"
+  - "Добавить темную и светлую темы"
+  example_prompt: |
+    Создай React Native приложение для фитнес-трекера.
+    Нужны экраны: авторизация, профиль, тренировки, статистика, настройки.
+    Используй TypeScript, Redux Toolkit для состояния, React Navigation,
+    добавь анимации, локальное хранение данных, push-уведомления.

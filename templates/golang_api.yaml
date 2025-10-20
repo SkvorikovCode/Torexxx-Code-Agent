@@ -1,0 +1,44 @@
+template:
+  name: golang_api
+  description: "Высокопроизводительный REST API на Go с Gin/Fiber и базой данных."
+  stack:
+  - go 1.21+
+  - gin / fiber (web framework)
+  - gorm (ORM)
+  - postgresql / mysql
+  - jwt-go (authentication)
+  - validator (validation)
+  - swagger (documentation)
+  - docker
+  structure:
+  - "cmd/server/ — точка входа приложения"
+  - "internal/handlers/ — HTTP обработчики"
+  - "internal/models/ — модели данных"
+  - "internal/services/ — бизнес-логика"
+  - "internal/repository/ — слой данных"
+  - "internal/middleware/ — middleware функции"
+  - "internal/config/ — конфигурация"
+  - "pkg/utils/ — вспомогательные пакеты"
+  - "migrations/ — миграции БД"
+  - "docs/ — Swagger документация"
+  - "go.mod — зависимости Go"
+  - "Dockerfile — контейнеризация"
+  rules:
+  - "Следовать Clean Architecture принципам"
+  - "Использовать dependency injection"
+  - "Добавить валидацию входных данных"
+  - "Настроить JWT аутентификацию"
+  - "Реализовать graceful shutdown"
+  - "Добавить логирование и метрики"
+  - "Использовать контекст для отмены операций"
+  - "Настроить CORS и rate limiting"
+  style:
+  - "Следовать Go Code Review Comments"
+  - "Использовать стандартные Go конвенции"
+  - "Создавать интерфейсы для тестируемости"
+  - "Добавить comprehensive error handling"
+  example_prompt: |
+    Создай Golang REST API для системы управления задачами.
+    Нужны endpoints: регистрация/авторизация, CRUD задач, категории, пользователи.
+    Используй Gin, GORM, PostgreSQL, JWT для аутентификации,
+    добавь Swagger документацию, Docker контейнеризацию, тесты.

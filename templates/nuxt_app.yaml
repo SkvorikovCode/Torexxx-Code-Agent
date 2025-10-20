@@ -1,0 +1,43 @@
+template:
+  name: nuxt_app
+  description: "Полнофункциональное веб-приложение на Nuxt.js с SSR/SSG и современным стеком."
+  stack:
+  - nuxt 3
+  - vue 3
+  - typescript
+  - tailwindcss / unocss
+  - pinia (state management)
+  - prisma (database)
+  - nuxt-auth (authentication)
+  - nuxt-content (CMS)
+  structure:
+  - "pages/ — страницы приложения (file-based routing)"
+  - "components/ — Vue компоненты"
+  - "layouts/ — макеты страниц"
+  - "middleware/ — middleware для роутинга"
+  - "plugins/ — плагины Nuxt"
+  - "composables/ — переиспользуемая логика"
+  - "stores/ — Pinia stores"
+  - "server/api/ — серверные API endpoints"
+  - "content/ — контент для Nuxt Content"
+  - "public/ — статические файлы"
+  - "nuxt.config.ts — конфигурация Nuxt"
+  rules:
+  - "Использовать Composition API и <script setup>"
+  - "Настроить SSR/SSG для оптимизации SEO"
+  - "Добавить мета-теги и Open Graph"
+  - "Использовать Pinia для управления состоянием"
+  - "Настроить автоимпорты компонентов"
+  - "Добавить PWA поддержку"
+  - "Использовать TypeScript для типизации"
+  - "Настроить i18n для интернационализации"
+  style:
+  - "Использовать Tailwind CSS / UnoCSS"
+  - "Создавать адаптивный дизайн"
+  - "Следовать Vue 3 best practices"
+  - "Добавить темную и светлую темы"
+  example_prompt: |
+    Создай Nuxt.js приложение для интернет-магазина.
+    Нужны страницы: главная, каталог, товар, корзина, профиль, админка.
+    Используй TypeScript, Pinia для состояния, Tailwind для стилей,
+    Prisma для БД, добавь аутентификацию, SEO оптимизацию, PWA.

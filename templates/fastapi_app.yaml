@@ -1,0 +1,45 @@
+template:
+  name: fastapi_app
+  description: "Высокопроизводительный API на FastAPI с SQLAlchemy и автоматической документацией."
+  stack:
+  - fastapi
+  - sqlalchemy
+  - alembic (migrations)
+  - pydantic
+  - uvicorn
+  - postgresql
+  - asyncpg
+  - python-jose (JWT)
+  - passlib (password hashing)
+  - python-multipart (file uploads)
+  structure:
+  - "main.py — точка входа приложения"
+  - "app/ — основной код приложения"
+  - "app/api/ — API endpoints"
+  - "app/core/ — конфигурация и безопасность"
+  - "app/models/ — SQLAlchemy модели"
+  - "app/schemas/ — Pydantic схемы"
+  - "app/crud/ — CRUD операции"
+  - "app/db/ — подключение к базе данных"
+  - "alembic/ — миграции базы данных"
+  - "requirements.txt — зависимости Python"
+  - ".env — переменные окружения"
+  rules:
+  - "Использовать async/await для всех операций"
+  - "Валидировать данные через Pydantic модели"
+  - "Создавать отдельные схемы для входных и выходных данных"
+  - "Использовать dependency injection для зависимостей"
+  - "Настроить JWT аутентификацию"
+  - "Добавить автоматическую документацию Swagger"
+  - "Использовать Alembic для миграций БД"
+  - "Обрабатывать ошибки через HTTPException"
+  style:
+  - "Следовать принципам REST API"
+  - "Использовать типизацию Python 3.9+"
+  - "Создавать детальные docstrings"
+  - "Настроить CORS и middleware"
+  example_prompt: |
+    Создай FastAPI приложение для системы управления библиотекой.
+    Нужны endpoints: книги, авторы, пользователи, аренда книг.
+    Используй PostgreSQL для данных, JWT для авторизации,
+    SQLAlchemy для ORM, автоматическую документацию.

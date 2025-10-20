@@ -1,0 +1,47 @@
+template:
+  name: nextjs_app
+  description: "Full-stack Next.js приложение с Prisma ORM, PostgreSQL и NextAuth.js."
+  stack:
+  - nextjs 14
+  - typescript
+  - prisma
+  - postgresql
+  - nextauth.js
+  - tailwindcss
+  - shadcn/ui
+  - zod (validation)
+  - react-hook-form
+  - tanstack/react-query
+  structure:
+  - "app/ — App Router структура"
+  - "app/api/ — API routes"
+  - "app/(auth)/ — страницы аутентификации"
+  - "app/(dashboard)/ — защищенные страницы"
+  - "components/ — переиспользуемые компоненты"
+  - "lib/ — утилиты и конфигурация"
+  - "prisma/ — схема базы данных и миграции"
+  - "types/ — TypeScript типы"
+  - "hooks/ — кастомные React хуки"
+  - "middleware.ts — Next.js middleware"
+  - "next.config.js — конфигурация Next.js"
+  - "tailwind.config.js — настройки Tailwind"
+  - ".env.local — переменные окружения"
+  rules:
+  - "Использовать App Router для маршрутизации"
+  - "Типизировать все API endpoints и компоненты"
+  - "Использовать Server Components где возможно"
+  - "Валидировать данные через Zod схемы"
+  - "Настроить NextAuth.js для аутентификации"
+  - "Использовать React Query для кеширования данных"
+  - "Создать переиспользуемые UI компоненты"
+  - "Настроить Prisma для работы с PostgreSQL"
+  style:
+  - "Использовать shadcn/ui для базовых компонентов"
+  - "Следовать принципам responsive design"
+  - "Создавать доступные (a11y) интерфейсы"
+  - "Использовать темную/светлую тему"
+  example_prompt: |
+    Создай Next.js приложение для управления проектами.
+    Нужны страницы: дашборд, список проектов, создание проекта, профиль.
+    Используй PostgreSQL для данных, NextAuth для авторизации,
+    Prisma для ORM, shadcn/ui для компонентов.

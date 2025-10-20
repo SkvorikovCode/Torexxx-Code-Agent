@@ -1,0 +1,42 @@
+template:
+  name: graphql_api
+  description: "GraphQL API сервер с Apollo Server, TypeScript и базой данных."
+  stack:
+  - apollo-server-express
+  - graphql
+  - typescript
+  - prisma / typeorm
+  - postgresql / mongodb
+  - graphql-codegen
+  - dataloader (caching)
+  - graphql-shield (authorization)
+  structure:
+  - "src/schema/ — GraphQL схемы и типы"
+  - "src/resolvers/ — резолверы для запросов и мутаций"
+  - "src/models/ — модели данных"
+  - "src/services/ — бизнес-логика"
+  - "src/middleware/ — middleware для аутентификации"
+  - "src/utils/ — вспомогательные функции"
+  - "src/database/ — настройка подключения к БД"
+  - "codegen.yml — конфигурация генерации типов"
+  - "schema.graphql — основная GraphQL схема"
+  - "docker-compose.yml — контейнеры для разработки"
+  rules:
+  - "Использовать Code First подход с TypeScript"
+  - "Настроить автогенерацию типов из схемы"
+  - "Добавить DataLoader для оптимизации запросов"
+  - "Реализовать аутентификацию и авторизацию"
+  - "Настроить валидацию входных данных"
+  - "Добавить обработку ошибок"
+  - "Использовать subscriptions для real-time"
+  - "Настроить GraphQL Playground для разработки"
+  style:
+  - "Следовать GraphQL best practices"
+  - "Создавать модульную архитектуру"
+  - "Использовать единообразное именование"
+  - "Добавить подробную документацию в схеме"
+  example_prompt: |
+    Создай GraphQL API для блог-платформы.
+    Нужны типы: User, Post, Comment, Category.
+    Операции: регистрация, авторизация, CRUD для постов и комментариев,
+    подписки на новые посты. Используй TypeScript, Prisma, PostgreSQL.
