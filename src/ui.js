@@ -374,25 +374,135 @@ export function renderCelebration(title, details = []) {
   }, 500);
 }
 
-// Анимированный прогресс-бар для длительных операций
-export function renderAnimatedProgress(current, total, label = '') {
+// Улучшенный индикатор прогресса с процентами и временем
+export function renderEnhancedProgress(current, total, label = '', startTime = null) {
   const percentage = Math.round((current / total) * 100);
   const barLength = 30;
   const filledLength = Math.round((percentage / 100) * barLength);
-  
   const bar = '█'.repeat(filledLength) + '░'.repeat(barLength - filledLength);
-  const colors = percentage < 30 ? 'red' : percentage < 70 ? 'yellow' : 'green';
   
-  logUpdate(
-    `${label ? chalk.bold(label) + '\n' : ''}` +
-    `${chalk[colors]('▶')} ${chalk[colors](bar)} ${chalk.bold(percentage)}%\n` +
-    `${chalk.gray(`${current}/${total} завершено`)}`
+  let timeInfo = '';
+  if (startTime) {
+    const elapsed = Date.now() - startTime;
+    const estimated = total > 0 ? (elapsed / current) * total : 0;
+    const remaining = Math.max(0, estimated - elapsed);
+    
+    const formatTime = (ms) => {
+      const seconds = Math.floor(ms / 1000);
+      const minutes = Math.floor(seconds / 60);
+      if (minutes > 0) return `${minutes}м ${seconds % 60}с`;
+      return `${seconds}с`;
+    };
+    
+    timeInfo = ` | ⏱️ ${formatTime(elapsed)} | 🔮 ~${formatTime(remaining)}`;
+  }
+  
+  const progressLine = `${chalk.cyan(bar)} ${chalk.bold.white(percentage)}% (${current}/${total})${timeInfo}`;
+  
+  if (label) {
+    console.log(`${chalk.yellow('📊')} ${chalk.bold(label)}`);
+  }
+  console.log(progressLine);
+}
+
+// Статусная строка с иконками и цветами
+export function renderStatusLine(status, message, details = null) {
+  const statusIcons = {
+    success: '✅',
+    error: '❌', 
+    warning: '⚠️',
+    info: '💡',
+    loading: '⏳',
+    done: '🎉'
+  };
+  
+  const statusColors = {
+    success: chalk.green,
+    error: chalk.red,
+    warning: chalk.yellow,
+    info: chalk.blue,
+    loading: chalk.cyan,
+    done: chalk.magenta
+  };
+  
+  const icon = statusIcons[status] || '📋';
+  const colorFn = statusColors[status] || chalk.white;
+  
+  let output = `${icon} ${colorFn.bold(message)}`;
+  
+  if (details) {
+    output += `\n   ${chalk.gray(details)}`;
+  }
+  
+  console.log(output);
+}
+
+// Компактная таблица с автоматическим выравниванием
+export function renderCompactTable(data, title = null) {
+  if (!data || !data.length) return;
+  
+  const headers = Object.keys(data[0]);
+  const maxWidths = headers.map(header => 
+    Math.max(
+      header.length,
+      ...data.map(row => String(row[header] || '').length)
+    )
   );
   
-  if (current === total) {
-    logUpdate.clear();
-    renderSuccess('Операция завершена!', [`Обработано ${total} элементов`]);
+  if (title) {
+    console.log(`\n${chalk.bold.cyan(title)}`);
   }
+  
+  // Заголовки
+  const headerRow = headers.map((header, i) => 
+    chalk.bold.white(header.padEnd(maxWidths[i]))
+  ).join(' │ ');
+  console.log(`┌─${headerRow.replace(/./g, '─')}─┐`);
+  console.log(`│ ${headerRow} │`);
+  console.log(`├─${headerRow.replace(/./g, '─')}─┤`);
+  
+  // Данные
+  data.forEach(row => {
+    const dataRow = headers.map((header, i) => 
+      String(row[header] || '').padEnd(maxWidths[i])
+    ).join(' │ ');
+    console.log(`│ ${dataRow} │`);
+  });
+  
+  console.log(`└─${headerRow.replace(/./g, '─')}─┘`);
+}
+
+// Интерактивное меню с поиском и фильтрацией
+export async function renderInteractiveMenu(title, choices, options = {}) {
+  const {
+    searchPlaceholder = 'Поиск...',
+    showHelp = true,
+    allowMultiple = false,
+    pageSize = 10
+  } = options;
+  
+  console.log(`\n${chalk.bold.cyan(title)}`);
+  
+  if (showHelp) {
+    console.log(chalk.gray('💡 Используйте стрелки для навигации, Enter для выбора, / для поиска'));
+  }
+  
+  const prompt = allowMultiple ? 'checkbox' : 'list';
+  
+  const answer = await inquirer.prompt([{
+    type: prompt,
+    name: 'selection',
+    message: 'Выберите опцию:',
+    choices: choices.map(choice => ({
+      name: typeof choice === 'string' ? choice : choice.name,
+      value: typeof choice === 'string' ? choice : choice.value
+    })),
+    pageSize,
+    searchable: true,
+    searchPlaceholder
+  }]);
+  
+  return answer.selection;
 }
 
 // Интерактивное меню с поиском
