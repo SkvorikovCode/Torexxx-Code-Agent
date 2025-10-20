@@ -1,8 +1,9 @@
 memory:
-  version: 3
+  version: 4
   settings:
     auto_add_limit: 3 # Максимум шаблонов для автоподключения
-    weight_default: 1 # Базовый вес, если не указан явно
+    weight_default: 1 # Вес по умолчанию
+    max_tags_per_template: 10 # Максимум тегов, влияющих на приоритет
 
   templates:
   - name: web_landing_plain
@@ -15,6 +16,8 @@ memory:
       css: 1
       vanilla-js: 1
       minimal: 2
+      responsive: 2
+      seo: 1
     synonyms:
     - "лендинг"
     - "landing page"
@@ -37,6 +40,9 @@ memory:
       express: 2
       node: 1
       server: 1
+      json: 1
+      crud: 1
+      modular: 1
     synonyms:
     - "бэкенд"
     - "REST API"
@@ -54,8 +60,10 @@ memory:
     tags:
       bot: 3
       telegram: 2
-      chat: 1
+      chat: 2
       automation: 1
+      async: 1
+      user-interaction: 1
     synonyms:
     - "телеграм бот"
     - "бот"
