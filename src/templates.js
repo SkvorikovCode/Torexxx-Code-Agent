@@ -42,6 +42,8 @@ export async function listAvailableTemplates() {
     const files = await fs.readdir(templatesDir);
     for (const f of files) {
       if (!/\.ya?ml$/i.test(f)) continue;
+      // skip MemoryBank aggregator file
+      if (/^MemoryBank\.ya?ml$/i.test(f)) continue;
       const filePath = path.join(templatesDir, f);
       try {
         const content = await fs.readFile(filePath, 'utf-8');

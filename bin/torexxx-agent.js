@@ -12,6 +12,7 @@ import { loadTemplates, applyTemplatesToSpec, logMissingTemplate, listAvailableT
 import { renderHeader, stageUpdate } from '../src/ui.js';
 import { createLoader } from '../src/loader.js';
 import { listModels } from '../src/openrouter.js';
+import { loadMemoryBank, matchTemplatesByText, getTemplateByName } from '../src/memorybank.js';
 
 dotenv.config();
 
@@ -168,6 +169,157 @@ async function tryGenerateWithRecovery(specObj, { apiKey, spinner }) {
   }
 }
 
+async function tryRefineWithRecovery(originalTask, { apiKey, spinner }) {
+  const run = async (opts = {}) => refinePrompt(originalTask, {
+    apiKey,
+    ...opts,
+  });
+
+  try {
+    const spec = await run();
+    if (spec && spec.__fallback) {
+      console.log('\n[agent] Рефайн вернул минимальное ТЗ (невалидный JSON).');
+      const { action } = await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'action',
+          message: 'Исправить рефайн: выберите действие',
+          choices: [
+            { name: 'Ввести другой OpenRouter API Key и повторить', value: 'key' },
+            { name: 'Повторить с текущим ключом (через несколько секунд)', value: 'retry' },
+            { name: 'Выбрать доступные модели и повторить', value: 'models' },
+            { name: 'Продолжить с минимальным ТЗ', value: 'continue' },
+          ],
+          default: 'retry',
+        }
+      ]);
+
+      if (action === 'continue') return spec;
+
+      if (action === 'key') {
+        const kk = await inquirer.prompt([
+          {
+            type: 'password',
+            name: 'apiKey',
+            message: 'Новый OpenRouter API Key (скрыто):',
+            mask: '*',
+            filter: (s) => String(s || '').trim(),
+          }
+        ]);
+        apiKey = kk.apiKey || apiKey;
+        stageUpdate(spinner, 'Ключ обновлён, повторяем рефайн…');
+        return await run();
+      }
+
+      if (action === 'retry') {
+        const ms = Number(process.env.OPENROUTER_RETRY_MS || 3000);
+        stageUpdate(spinner, `Повтор рефайна через ${Math.round(ms / 1000)} с…`);
+        await new Promise(r => setTimeout(r, ms));
+        return await run();
+      }
+
+      if (action === 'models') {
+        stageUpdate(spinner, 'Запрашиваем доступные модели…');
+        let ids = [];
+        try {
+          const { ids: list } = await listModels({ apiKey });
+          ids = list;
+        } catch (e) {
+          console.log('[agent] Не удалось получить список моделей:', String(e?.message || e));
+        }
+        const suggested = ids.filter(x => /json|gpt|claude|mistral|qwen|instruct|chat/i.test(String(x))).slice(0, 12);
+        const choices = (suggested.length ? suggested : ids.slice(0, 24)).map(id => ({ name: id, value: id }));
+        const res = await inquirer.prompt([
+          {
+            type: 'checkbox',
+            name: 'models',
+            message: 'Выберите модели для рефайна (строгий JSON):',
+            choices,
+            pageSize: 24,
+            validate: (arr) => arr.length ? true : 'Выберите хотя бы одну модель',
+          }
+        ]);
+        const selected = res.models?.length ? res.models : suggested;
+        stageUpdate(spinner, 'Повторяем рефайн с выбранными моделями…');
+        return await run({ modelsRefine: selected });
+      }
+    }
+    return spec;
+  } catch (err) {
+    const msg = String(err?.message || err);
+    console.log('\n[agent] Ошибка рефайна:', msg);
+    const is429 = /\b429\b/i.test(msg) || /rate limit/i.test(msg) || /free-models-per-day/i.test(msg);
+    const is404 = /\b404\b/i.test(msg) || /No endpoints found/i.test(msg);
+
+    const { action } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'action',
+        message: 'Проблемы с OpenRouter при рефайне. Выберите действие:',
+        choices: [
+          { name: 'Ввести другой OpenRouter API Key и повторить', value: 'key' },
+          { name: 'Повторить с текущим ключом (через несколько секунд)', value: 'retry' },
+          { name: 'Выбрать доступные модели и повторить', value: 'models' },
+          { name: 'Прервать', value: 'abort' },
+        ],
+        default: is429 ? 'key' : (is404 ? 'models' : 'retry'),
+      }
+    ]);
+
+    if (action === 'abort') throw err;
+
+    if (action === 'key') {
+      const kk = await inquirer.prompt([
+        {
+          type: 'password',
+          name: 'apiKey',
+          message: 'Новый OpenRouter API Key (скрыто):',
+          mask: '*',
+          filter: (s) => String(s || '').trim(),
+        }
+      ]);
+      apiKey = kk.apiKey || apiKey;
+      stageUpdate(spinner, 'Ключ обновлён, повторяем рефайн…');
+      return await run();
+    }
+
+    if (action === 'retry') {
+      const ms = Number(process.env.OPENROUTER_RETRY_MS || 3000);
+      stageUpdate(spinner, `Повтор рефайна через ${Math.round(ms / 1000)} с…`);
+      await new Promise(r => setTimeout(r, ms));
+      return await run();
+    }
+
+    if (action === 'models') {
+      stageUpdate(spinner, 'Запрашиваем доступные модели…');
+      let ids = [];
+      try {
+        const { ids: list } = await listModels({ apiKey });
+        ids = list;
+      } catch (e) {
+        console.log('[agent] Не удалось получить список моделей:', String(e?.message || e));
+      }
+      const suggested = ids.filter(x => /json|gpt|claude|mistral|qwen|instruct|chat/i.test(String(x))).slice(0, 12);
+      const choices = (suggested.length ? suggested : ids.slice(0, 24)).map(id => ({ name: id, value: id }));
+      const res = await inquirer.prompt([
+        {
+          type: 'checkbox',
+          name: 'models',
+          message: 'Выберите модели для рефайна (строгий JSON):',
+          choices,
+          pageSize: 24,
+          validate: (arr) => arr.length ? true : 'Выберите хотя бы одну модель',
+        }
+      ]);
+      const selected = res.models?.length ? res.models : suggested;
+      stageUpdate(spinner, 'Повторяем рефайн с выбранными моделями…');
+      return await run({ modelsRefine: selected });
+    }
+
+    return await run();
+  }
+}
+
 async function main() {
   const argv = yargs(hideBin(process.argv))
     .option('prompt', { type: 'string', describe: 'Задание на генерацию', demandOption: false })
@@ -191,7 +343,7 @@ async function main() {
   // 1) Нормализация запроса (нейронка выбирает шаблоны)
   const spinner = createLoader('Нормализуем задачу…');
   stageUpdate(spinner, 'Нормализуем задачу…');
-  const spec = await refinePrompt(originalTask, { apiKey });
+  const spec = await tryRefineWithRecovery(originalTask, { apiKey, spinner });
 
   // 2) Вычисляем итоговый список шаблонов: приоритет — выбор режима
   const modelTemplates = Array.isArray(spec.templates) ? spec.templates : [];
@@ -200,13 +352,63 @@ async function main() {
     : (mode === 'none')
       ? []
       : (modelTemplates.length ? modelTemplates : explicitTemplates);
+  
+  // Эвристика: авто-выбор web_landing_plain при запросе лендинга
+  const looksLikeLanding = (t) => {
+  const s = String(t || '').toLowerCase();
+  return /лендинг|landing|landing page|landing-page|homepage|промо|презентационный сайт|главная страница/i.test(s);
+  };
+  const wantLanding = looksLikeLanding(originalTask) || looksLikeLanding(spec?.title) || looksLikeLanding(spec?.overview);
+  if (mode === 'auto' && wantLanding && !effectiveTemplates.includes('web_landing_plain')) {
+  effectiveTemplates.push('web_landing_plain');
+  console.log('[templates] эвристика: выбран web_landing_plain для лендинга');
+  }
+
+  // Подбор по MemoryBank: добавить кандидатов по тегам
+  if (mode === 'auto') {
+    const memory = await loadMemoryBank();
+    const text = `${originalTask}\n${spec?.title || ''}\n${spec?.overview || ''}`;
+    const candidates = matchTemplatesByText(text, memory);
+    for (const c of candidates) {
+      const name = c.name;
+      if (!effectiveTemplates.includes(name)) {
+        effectiveTemplates.push(name);
+        console.log(`[templates] MemoryBank: добавлен шаблон по тегам — ${name}`);
+      }
+    }
+  }
 
   // 3) Загружаем и применяем шаблоны; логируем отсутствие
   stageUpdate(spinner, 'Подбираем и применяем шаблоны…');
   const loaded = await loadTemplates(effectiveTemplates);
   const loadedNames = new Set(loaded.map(t => t.name));
-  const missing = effectiveTemplates.filter(n => !loadedNames.has(n));
+  let missing = effectiveTemplates.filter(n => !loadedNames.has(n));
 
+  // Фолбэк: если YAML-шаблон отсутствует, пытаемся взять данные из MemoryBank
+  if (missing.length) {
+    const memory = await loadMemoryBank();
+    const looksLikePath = (s) => /[\\\/.]/.test(String(s || ''));
+    for (const miss of [...missing]) {
+      const memT = getTemplateByName(memory, miss);
+      if (memT) {
+        const data = {
+          description: memT.description || '',
+          rules: Array.isArray(memT.rules) ? memT.rules : [],
+          style: Array.isArray(memT.style) ? memT.style : [],
+          stack: Array.isArray(memT.stack) ? memT.stack : [],
+          // structure из MemoryBank может быть секциями; добавляем только похожие на пути
+          structure: (Array.isArray(memT.structure) ? memT.structure.filter(looksLikePath) : []),
+        };
+        loaded.push({ name: miss, filePath: 'MemoryBank', data });
+        loadedNames.add(miss);
+        console.log(`[templates] фолбэк: применены данные из MemoryBank для отсутствующего шаблона "${miss}"`);
+      }
+    }
+    // Обновляем список отсутствующих после фолбэка
+    missing = effectiveTemplates.filter(n => !loadedNames.has(n));
+  }
+
+  // Логируем оставшиеся отсутствующие
   for (const miss of missing) {
     await logMissingTemplate(miss, spec, originalTask);
     console.log(`[templates] отсутствует шаблон "${miss}" — записан в requests.jsonl`);

@@ -1,0 +1,77 @@
+memory:
+  version: 3
+  settings:
+    auto_add_limit: 3 # Максимум шаблонов для автоподключения
+    weight_default: 1 # Базовый вес, если не указан явно
+
+  templates:
+  - name: web_landing_plain
+    tags:
+      landing: 3
+      homepage: 2
+      promo: 2
+      frontend: 1
+      html: 1
+      css: 1
+      vanilla-js: 1
+      minimal: 2
+    synonyms:
+    - "лендинг"
+    - "landing page"
+    - "главная страница"
+    - "промо сайт"
+    description: "Минималистичный промо/главный сайт без фреймворков."
+    stack: [ HTML, CSS, Vanilla JS ]
+    style: [ minimal, responsive ]
+    structure: [ header, hero, features, footer ]
+    rules:
+    - "Без зависимостей, только нативные технологии."
+    - "Должен быть адаптивным."
+    - "Не использовать внешние библиотеки UI."
+
+  - name: api_backend
+    tags:
+      backend: 3
+      api: 2
+      rest: 2
+      express: 2
+      node: 1
+      server: 1
+    synonyms:
+    - "бэкенд"
+    - "REST API"
+    - "сервер"
+    - "express"
+    description: "Базовый REST API сервер на Node.js + Express."
+    stack: [ Node.js, Express ]
+    style: [ clean, modular ]
+    structure: [ routes, controllers, services ]
+    rules:
+    - "Использовать модульную архитектуру."
+    - "Поддержка JSON API."
+
+  - name: telegram_bot
+    tags:
+      bot: 3
+      telegram: 2
+      chat: 1
+      automation: 1
+    synonyms:
+    - "телеграм бот"
+    - "бот"
+    - "чат-бот"
+    description: "Телеграм-бот для автоматизации действий или общения."
+    stack: [ Node.js, Telegraf ]
+    style: [ conversational, modular ]
+    structure: [ commands, middleware, handlers ]
+    rules:
+    - "Обрабатывать ошибки безопасно."
+    - "Разделять логику и конфигурацию."
+
+  synonyms:
+    landing: [ "landing page", "homepage", "лендинг", "промо" ]
+    backend: [ "server", "сервер", "бэкенд" ]
+    bot: [ "chatbot", "чат-бот", "бот", "телеграм бот" ]
+
+  hints:
+    readme: [ "README.md", "документация", "описание" ]
