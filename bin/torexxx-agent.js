@@ -9,8 +9,20 @@ import { refinePrompt } from '../src/refine.js';
 import { generateCode } from '../src/codegen.js';
 import { saveProjectArtifacts } from '../src/save.js';
 import { loadTemplates, applyTemplatesToSpec, logMissingTemplate, listAvailableTemplates } from '../src/templates.js';
-import { renderHeader, stageUpdate } from '../src/ui.js';
-import { createLoader } from '../src/loader.js';
+import { 
+  renderHeader, renderProgressBar, streamPrinter, 
+  clearStreamPrinter, stageUpdate, renderSuccess, renderError, 
+  renderInfo, renderMenu, renderTable, renderCelebration, 
+  renderProjectStats, renderTips, renderHelp 
+} from '../src/ui.js';
+import { 
+  createSpinner, 
+  setSpinnerText, 
+  succeedSpinner, 
+  failSpinner,
+  MultiStageSpinner,
+  ProgressSpinner
+} from '../src/loader.js';
 import { listModels } from '../src/openrouter.js';
 import { loadMemoryBank, matchTemplatesByText, getTemplateByName } from '../src/memorybank.js';
 
@@ -22,7 +34,14 @@ function parseList(val) {
 }
 
 async function runWizard() {
-  renderHeader();
+  renderHeader(true); // Анимированный заголовок
+  
+  renderInfo(
+    'Добро пожаловать в Torexxx Code Agent!', 
+    'Этот инструмент поможет вам создать проект с использованием ИИ и готовых шаблонов.\nВыберите режим работы и опишите вашу задачу.',
+    'tip'
+  );
+  
   const avail = await listAvailableTemplates();
   const choices = avail.map(t => ({ name: `${t.name}${t.description ? ' — ' + t.description : ''}`, value: t.name }));
 
@@ -30,11 +49,11 @@ async function runWizard() {
     {
       type: 'list',
       name: 'mode',
-      message: 'Выбор шаблонов:',
+      message: '🎯 Выберите режим работы:',
       choices: [
-        { name: 'Авто-выбор по описанию задачи', value: 'auto' },
-        { name: 'Выбрать вручную', value: 'manual' },
-        { name: 'Без шаблонов', value: 'none' },
+        { name: '🤖 Авто-выбор по описанию задачи (рекомендуется)', value: 'auto' },
+        { name: '🎛️  Выбрать шаблоны вручную', value: 'manual' },
+        { name: '🚀 Без шаблонов (чистая генерация)', value: 'none' },
       ],
       default: 'auto',
     }
@@ -44,24 +63,38 @@ async function runWizard() {
     {
       type: 'input',
       name: 'task',
-      message: 'Опишите вашу задачу (кратко):',
+      message: '📝 Опишите вашу задачу подробно:',
       default: 'Новый проект',
+      validate: (input) => {
+        if (!input || input.trim().length < 5) {
+          return 'Пожалуйста, опишите задачу более подробно (минимум 5 символов)';
+        }
+        return true;
+      }
     }
   ]);
 
   let explicitTemplates = [];
   if (mode === 'manual' && choices.length) {
+    renderMenu('Доступные шаблоны', choices.map(c => c.name));
+    
     const sel = await inquirer.prompt([
       {
         type: 'checkbox',
         name: 'templates',
-        message: 'Выберите шаблоны (пробел — выбрать, Enter — продолжить):',
+        message: '📋 Выберите шаблоны (пробел — выбрать, Enter — продолжить):',
         choices,
+        validate: (answer) => {
+          if (answer.length === 0) {
+            return 'Выберите хотя бы один шаблон или используйте режим "Без шаблонов"';
+          }
+          return true;
+        }
       },
       {
         type: 'input',
         name: 'extra',
-        message: 'Доп. шаблоны (имена/пути через запятую, опционально):',
+        message: '➕ Дополнительные шаблоны (имена через запятую, опционально):',
         default: '',
       }
     ]);
@@ -70,13 +103,25 @@ async function runWizard() {
 
   let apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_EMBEDDED_KEY || '';
   if (!apiKey) {
+    renderInfo(
+      'Требуется API ключ',
+      'Для работы с ИИ необходим API ключ от OpenRouter.\nВы можете получить его на https://openrouter.ai/',
+      'warning'
+    );
+    
     const k = await inquirer.prompt([
       {
         type: 'password',
         name: 'apiKey',
-        message: 'Введите OpenRouter API Key (скрыто при вводе):',
+        message: '🔑 Введите OpenRouter API Key:',
         mask: '*',
         filter: (s) => String(s || '').trim(),
+        validate: (input) => {
+          if (!input || input.length < 10) {
+            return 'API ключ должен содержать минимум 10 символов';
+          }
+          return true;
+        }
       }
     ]);
     apiKey = k.apiKey || '';
@@ -89,83 +134,77 @@ async function tryGenerateWithRecovery(specObj, { apiKey, spinner }) {
   const run = async (opts = {}) => generateCode(specObj, {
     apiKey,
     ...opts,
-    onFileStart: (p) => stageUpdate(spinner, `Генерация: ${p}`)
+    onFileStart: (p) => setSpinnerText(spinner, `Генерация файла: ${p}`, 'generate')
   });
 
   try {
     return await run();
   } catch (err) {
     const msg = String(err?.message || err);
-    console.log('\n[agent] Ошибка кодогенерации:', msg);
+    console.log('\n');
+    
     const is429 = /\b429\b/i.test(msg) || /rate limit/i.test(msg) || /free-models-per-day/i.test(msg);
-    const is404 = /\b404\b/i.test(msg) || /No endpoints found/i.test(msg);
+    const isAuth = /\b401\b/i.test(msg) || /unauthorized/i.test(msg) || /invalid.*key/i.test(msg);
+    const isNetwork = /network/i.test(msg) || /timeout/i.test(msg) || /ENOTFOUND/i.test(msg);
 
-    const { action } = await inquirer.prompt([
-      {
-        type: 'list',
-        name: 'action',
-        message: 'Проблемы с OpenRouter. Выберите действие:',
-        choices: [
-          { name: 'Ввести другой OpenRouter API Key и повторить', value: 'key' },
-          { name: 'Повторить с текущим ключом (через несколько секунд)', value: 'retry' },
-          { name: 'Выбрать доступные модели и повторить', value: 'models' },
-          { name: 'Прервать', value: 'abort' },
-        ],
-        default: is429 ? 'key' : (is404 ? 'models' : 'retry'),
-      }
-    ]);
+    if (is429) {
+      renderError(
+        'Превышен лимит запросов к API',
+        [
+          'Подождите несколько минут перед повторной попыткой',
+          'Проверьте ваш план подписки на OpenRouter',
+          'Попробуйте использовать другую модель'
+        ]
+      );
+    } else if (isAuth) {
+      renderError(
+        'Ошибка авторизации API',
+        [
+          'Проверьте правильность API ключа',
+          'Убедитесь, что ключ активен на OpenRouter',
+          'Проверьте баланс вашего аккаунта'
+        ]
+      );
+    } else if (isNetwork) {
+      renderError(
+        'Проблемы с сетевым соединением',
+        [
+          'Проверьте подключение к интернету',
+          'Попробуйте повторить запрос через несколько секунд',
+          'Проверьте настройки прокси/VPN'
+        ]
+      );
+    } else {
+      renderError(
+        'Ошибка генерации кода',
+        [
+          'Попробуйте упростить описание задачи',
+          'Проверьте корректность выбранных шаблонов',
+          'Обратитесь к документации API'
+        ]
+      );
+    }
 
-    if (action === 'abort') throw err;
-
-    if (action === 'key') {
-      const kk = await inquirer.prompt([
+    // Попытка восстановления для некоторых ошибок
+    if (is429) {
+      const { retry } = await inquirer.prompt([
         {
-          type: 'password',
-          name: 'apiKey',
-          message: 'Новый OpenRouter API Key (скрыто):',
-          mask: '*',
-          filter: (s) => String(s || '').trim(),
+          type: 'confirm',
+          name: 'retry',
+          message: '🔄 Попробовать снова через 30 секунд?',
+          default: false,
         }
       ]);
-      apiKey = kk.apiKey || apiKey;
-      stageUpdate(spinner, 'Ключ обновлён, повторяем генерацию…');
-      return await run();
-    }
-
-    if (action === 'retry') {
-      const ms = Number(process.env.OPENROUTER_RETRY_MS || 3000);
-      stageUpdate(spinner, `Повтор через ${Math.round(ms / 1000)} с…`);
-      await new Promise(r => setTimeout(r, ms));
-      return await run();
-    }
-
-    if (action === 'models') {
-      stageUpdate(spinner, 'Запрашиваем доступные модели…');
-      let ids = [];
-      try {
-        const { ids: list } = await listModels({ apiKey });
-        ids = list;
-      } catch (e) {
-        console.log('[agent] Не удалось получить список моделей:', String(e?.message || e));
+      
+      if (retry) {
+        setSpinnerText(spinner, 'Ожидание перед повторной попыткой...', 'loading');
+        await new Promise(resolve => setTimeout(resolve, 30000));
+        setSpinnerText(spinner, 'Повторная попытка генерации...', 'generate');
+        return await run();
       }
-      const suggested = ids.filter(x => /coder|code|gpt|llama|claude|gemini/i.test(String(x))).slice(0, 12);
-      const choices = (suggested.length ? suggested : ids.slice(0, 24)).map(id => ({ name: id, value: id }));
-      const res = await inquirer.prompt([
-        {
-          type: 'checkbox',
-          name: 'models',
-          message: 'Выберите модели для попытки кодогенерации:',
-          choices,
-          pageSize: 24,
-          validate: (arr) => arr.length ? true : 'Выберите хотя бы одну модель',
-        }
-      ]);
-      const selected = res.models?.length ? res.models : suggested;
-      stageUpdate(spinner, 'Повторяем генерацию с выбранными моделями…');
-      return await run({ modelsCodegen: selected });
     }
 
-    return await run();
+    throw err;
   }
 }
 
@@ -173,154 +212,130 @@ async function tryRefineWithRecovery(originalTask, { apiKey, spinner }) {
   const run = async (opts = {}) => refinePrompt(originalTask, {
     apiKey,
     ...opts,
+    onToken: (token) => {
+      // Можно добавить стрим-вывод здесь если нужно
+    }
   });
 
   try {
-    const spec = await run();
-    if (spec && spec.__fallback) {
-      console.log('\n[agent] Рефайн вернул минимальное ТЗ (невалидный JSON).');
-      const { action } = await inquirer.prompt([
-        {
-          type: 'list',
-          name: 'action',
-          message: 'Исправить рефайн: выберите действие',
-          choices: [
-            { name: 'Ввести другой OpenRouter API Key и повторить', value: 'key' },
-            { name: 'Повторить с текущим ключом (через несколько секунд)', value: 'retry' },
-            { name: 'Выбрать доступные модели и повторить', value: 'models' },
-            { name: 'Продолжить с минимальным ТЗ', value: 'continue' },
-          ],
-          default: 'retry',
-        }
-      ]);
-
-      if (action === 'continue') return spec;
-
-      if (action === 'key') {
-        const kk = await inquirer.prompt([
-          {
-            type: 'password',
-            name: 'apiKey',
-            message: 'Новый OpenRouter API Key (скрыто):',
-            mask: '*',
-            filter: (s) => String(s || '').trim(),
-          }
-        ]);
-        apiKey = kk.apiKey || apiKey;
-        stageUpdate(spinner, 'Ключ обновлён, повторяем рефайн…');
-        return await run();
-      }
-
-      if (action === 'retry') {
-        const ms = Number(process.env.OPENROUTER_RETRY_MS || 3000);
-        stageUpdate(spinner, `Повтор рефайна через ${Math.round(ms / 1000)} с…`);
-        await new Promise(r => setTimeout(r, ms));
-        return await run();
-      }
-
-      if (action === 'models') {
-        stageUpdate(spinner, 'Запрашиваем доступные модели…');
-        let ids = [];
-        try {
-          const { ids: list } = await listModels({ apiKey });
-          ids = list;
-        } catch (e) {
-          console.log('[agent] Не удалось получить список моделей:', String(e?.message || e));
-        }
-        const suggested = ids.filter(x => /json|gpt|claude|mistral|qwen|instruct|chat/i.test(String(x))).slice(0, 12);
-        const choices = (suggested.length ? suggested : ids.slice(0, 24)).map(id => ({ name: id, value: id }));
-        const res = await inquirer.prompt([
-          {
-            type: 'checkbox',
-            name: 'models',
-            message: 'Выберите модели для рефайна (строгий JSON):',
-            choices,
-            pageSize: 24,
-            validate: (arr) => arr.length ? true : 'Выберите хотя бы одну модель',
-          }
-        ]);
-        const selected = res.models?.length ? res.models : suggested;
-        stageUpdate(spinner, 'Повторяем рефайн с выбранными моделями…');
-        return await run({ modelsRefine: selected });
-      }
-    }
-    return spec;
+    return await run();
   } catch (err) {
     const msg = String(err?.message || err);
-    console.log('\n[agent] Ошибка рефайна:', msg);
+    console.log('\n');
+    
     const is429 = /\b429\b/i.test(msg) || /rate limit/i.test(msg) || /free-models-per-day/i.test(msg);
-    const is404 = /\b404\b/i.test(msg) || /No endpoints found/i.test(msg);
+    const isAuth = /\b401\b/i.test(msg) || /unauthorized/i.test(msg) || /invalid.*key/i.test(msg);
 
-    const { action } = await inquirer.prompt([
-      {
-        type: 'list',
-        name: 'action',
-        message: 'Проблемы с OpenRouter при рефайне. Выберите действие:',
-        choices: [
-          { name: 'Ввести другой OpenRouter API Key и повторить', value: 'key' },
-          { name: 'Повторить с текущим ключом (через несколько секунд)', value: 'retry' },
-          { name: 'Выбрать доступные модели и повторить', value: 'models' },
-          { name: 'Прервать', value: 'abort' },
-        ],
-        default: is429 ? 'key' : (is404 ? 'models' : 'retry'),
-      }
-    ]);
-
-    if (action === 'abort') throw err;
-
-    if (action === 'key') {
-      const kk = await inquirer.prompt([
+    if (is429) {
+      renderError(
+        'Превышен лимит запросов при анализе задачи',
+        [
+          'Подождите несколько минут',
+          'Проверьте лимиты вашего аккаунта OpenRouter'
+        ]
+      );
+      
+      const { useSimple } = await inquirer.prompt([
         {
-          type: 'password',
-          name: 'apiKey',
-          message: 'Новый OpenRouter API Key (скрыто):',
-          mask: '*',
-          filter: (s) => String(s || '').trim(),
+          type: 'confirm',
+          name: 'useSimple',
+          message: '🔄 Продолжить с упрощенным анализом?',
+          default: true,
         }
       ]);
-      apiKey = kk.apiKey || apiKey;
-      stageUpdate(spinner, 'Ключ обновлён, повторяем рефайн…');
-      return await run();
-    }
-
-    if (action === 'retry') {
-      const ms = Number(process.env.OPENROUTER_RETRY_MS || 3000);
-      stageUpdate(spinner, `Повтор рефайна через ${Math.round(ms / 1000)} с…`);
-      await new Promise(r => setTimeout(r, ms));
-      return await run();
-    }
-
-    if (action === 'models') {
-      stageUpdate(spinner, 'Запрашиваем доступные модели…');
-      let ids = [];
-      try {
-        const { ids: list } = await listModels({ apiKey });
-        ids = list;
-      } catch (e) {
-        console.log('[agent] Не удалось получить список моделей:', String(e?.message || e));
+      
+      if (useSimple) {
+        return {
+          title: originalTask,
+          overview: `Проект: ${originalTask}`,
+          requirements: [originalTask],
+          templates: [],
+          template_suggestion: null
+        };
       }
-      const suggested = ids.filter(x => /json|gpt|claude|mistral|qwen|instruct|chat/i.test(String(x))).slice(0, 12);
-      const choices = (suggested.length ? suggested : ids.slice(0, 24)).map(id => ({ name: id, value: id }));
-      const res = await inquirer.prompt([
-        {
-          type: 'checkbox',
-          name: 'models',
-          message: 'Выберите модели для рефайна (строгий JSON):',
-          choices,
-          pageSize: 24,
-          validate: (arr) => arr.length ? true : 'Выберите хотя бы одну модель',
-        }
-      ]);
-      const selected = res.models?.length ? res.models : suggested;
-      stageUpdate(spinner, 'Повторяем рефайн с выбранными моделями…');
-      return await run({ modelsRefine: selected });
+    } else if (isAuth) {
+      renderError(
+        'Ошибка авторизации при анализе задачи',
+        [
+          'Проверьте API ключ',
+          'Убедитесь в наличии средств на балансе'
+        ]
+      );
+    } else {
+      renderError(
+        'Ошибка анализа задачи',
+        [
+          'Попробуйте переформулировать задачу',
+          'Проверьте подключение к интернету'
+        ]
+      );
     }
 
-    return await run();
+    throw err;
+  }
+}
+
+// Функция для подсчета статистики проекта
+function calculateProjectStats(outputPath, templates, startTime) {
+  try {
+    let filesCreated = 0;
+    let linesOfCode = 0;
+    let totalSize = 0;
+    
+    function countFiles(dir) {
+      const items = fs.readdirSync(dir);
+      for (const item of items) {
+        const fullPath = path.join(dir, item);
+        const stat = fs.statSync(fullPath);
+        
+        if (stat.isDirectory() && !item.startsWith('.') && item !== 'node_modules') {
+          countFiles(fullPath);
+        } else if (stat.isFile()) {
+          filesCreated++;
+          totalSize += stat.size;
+          
+          // Подсчет строк кода для текстовых файлов
+          const ext = path.extname(item).toLowerCase();
+          const codeExtensions = ['.js', '.jsx', '.ts', '.tsx', '.vue', '.py', '.go', '.html', '.css', '.scss', '.json', '.md'];
+          
+          if (codeExtensions.includes(ext)) {
+            try {
+              const content = fs.readFileSync(fullPath, 'utf8');
+              linesOfCode += content.split('\n').length;
+            } catch (e) {
+              // Игнорируем ошибки чтения файлов
+            }
+          }
+        }
+      }
+    }
+    
+    if (fs.existsSync(outputPath)) {
+      countFiles(outputPath);
+    }
+    
+    return {
+      filesCreated,
+      linesOfCode,
+      templates: templates.map(t => t.name || t),
+      duration: Date.now() - startTime,
+      size: totalSize
+    };
+  } catch (error) {
+    console.error('Ошибка при подсчете статистики:', error);
+    return {
+      filesCreated: 0,
+      linesOfCode: 0,
+      templates: templates.map(t => t.name || t),
+      duration: Date.now() - startTime,
+      size: 0
+    };
   }
 }
 
 async function main() {
+  const startTime = Date.now();
+  
   const argv = yargs(hideBin(process.argv))
     .option('prompt', { type: 'string', describe: 'Задание на генерацию', demandOption: false })
     .option('templates', { type: 'string', describe: 'Явно применяемые шаблоны (через запятую)', default: '' })
@@ -332,109 +347,384 @@ async function main() {
   let apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_EMBEDDED_KEY || '';
   let mode = 'cli';
 
+  // Валидация входных параметров
+  if (originalTask && typeof originalTask !== 'string') {
+    renderError(
+      'Некорректный формат задачи',
+      [
+        'Задача должна быть строкой',
+        'Используйте кавычки для задач с пробелами',
+        'Пример: "Создай лендинг для IT-компании"'
+      ]
+    );
+    process.exit(1);
+  }
+
+  if (originalTask && originalTask.trim().length < 3) {
+    renderError(
+      'Слишком короткая задача',
+      [
+        'Задача должна содержать минимум 3 символа',
+        'Опишите что вы хотите создать более подробно',
+        'Пример: "Создай простой сайт-визитку"'
+      ]
+    );
+    process.exit(1);
+  }
+
+  if (originalTask && originalTask.length > 1000) {
+    renderError(
+      'Слишком длинная задача',
+      [
+        'Задача не должна превышать 1000 символов',
+        'Попробуйте сократить описание',
+        'Сосредоточьтесь на основных требованиях'
+      ]
+    );
+    process.exit(1);
+  }
+
+  if (!apiKey) {
+    renderError(
+      'Отсутствует API ключ',
+      [
+        'Создайте файл .env в корне проекта',
+        'Добавьте строку: OPENROUTER_API_KEY=ваш_ключ',
+        'Получите ключ на https://openrouter.ai'
+      ]
+    );
+    process.exit(1);
+  }
+
   if (!originalTask) {
     const w = await runWizard();
     originalTask = w.originalTask;
     explicitTemplates = w.explicitTemplates;
     apiKey = w.apiKey;
     mode = w.mode;
-  }
-
-  // 1) Нормализация запроса (нейронка выбирает шаблоны)
-  const spinner = createLoader('Нормализуем задачу…');
-  stageUpdate(spinner, 'Нормализуем задачу…');
-  const spec = await tryRefineWithRecovery(originalTask, { apiKey, spinner });
-
-  // 2) Вычисляем итоговый список шаблонов: приоритет — выбор режима
-  const modelTemplates = Array.isArray(spec.templates) ? spec.templates : [];
-  const effectiveTemplates = (mode === 'manual')
-    ? explicitTemplates
-    : (mode === 'none')
-      ? []
-      : (modelTemplates.length ? modelTemplates : explicitTemplates);
-  
-  // Эвристика: авто-выбор web_landing_plain при запросе лендинга
-  const looksLikeLanding = (t) => {
-  const s = String(t || '').toLowerCase();
-  return /лендинг|landing|landing page|landing-page|homepage|промо|презентационный сайт|главная страница/i.test(s);
-  };
-  const wantLanding = looksLikeLanding(originalTask) || looksLikeLanding(spec?.title) || looksLikeLanding(spec?.overview);
-  if (mode === 'auto' && wantLanding && !effectiveTemplates.includes('web_landing_plain')) {
-  effectiveTemplates.push('web_landing_plain');
-  console.log('[templates] эвристика: выбран web_landing_plain для лендинга');
-  }
-
-  // Подбор по MemoryBank: добавить кандидатов по тегам
-  if (mode === 'auto') {
-    const memory = await loadMemoryBank();
-    const text = `${originalTask}\n${spec?.title || ''}\n${spec?.overview || ''}`;
-    const candidates = matchTemplatesByText(text, memory);
-    for (const c of candidates) {
-      const name = c.name;
-      if (!effectiveTemplates.includes(name)) {
-        effectiveTemplates.push(name);
-        console.log(`[templates] MemoryBank: добавлен шаблон по тегам — ${name}`);
-      }
-    }
-  }
-
-  // 3) Загружаем и применяем шаблоны; логируем отсутствие
-  stageUpdate(spinner, 'Подбираем и применяем шаблоны…');
-  const loaded = await loadTemplates(effectiveTemplates);
-  const loadedNames = new Set(loaded.map(t => t.name));
-  let missing = effectiveTemplates.filter(n => !loadedNames.has(n));
-
-  // Фолбэк: если YAML-шаблон отсутствует, пытаемся взять данные из MemoryBank
-  if (missing.length) {
-    const memory = await loadMemoryBank();
-    const looksLikePath = (s) => /[\\\/.]/.test(String(s || ''));
-    for (const miss of [...missing]) {
-      const memT = getTemplateByName(memory, miss);
-      if (memT) {
-        const data = {
-          description: memT.description || '',
-          rules: Array.isArray(memT.rules) ? memT.rules : [],
-          style: Array.isArray(memT.style) ? memT.style : [],
-          stack: Array.isArray(memT.stack) ? memT.stack : [],
-          // structure из MemoryBank может быть секциями; добавляем только похожие на пути
-          structure: (Array.isArray(memT.structure) ? memT.structure.filter(looksLikePath) : []),
-        };
-        loaded.push({ name: miss, filePath: 'MemoryBank', data });
-        loadedNames.add(miss);
-        console.log(`[templates] фолбэк: применены данные из MemoryBank для отсутствующего шаблона "${miss}"`);
-      }
-    }
-    // Обновляем список отсутствующих после фолбэка
-    missing = effectiveTemplates.filter(n => !loadedNames.has(n));
-  }
-
-  // Логируем оставшиеся отсутствующие
-  for (const miss of missing) {
-    await logMissingTemplate(miss, spec, originalTask);
-    console.log(`[templates] отсутствует шаблон "${miss}" — записан в requests.jsonl`);
-  }
-
-  if (loaded.length) {
-    const specWithTemplates = applyTemplatesToSpec(spec, loaded);
-    console.log(`[templates] применены: ${loaded.map(t => t.name).join(', ')}`);
-    stageUpdate(spinner, 'Генерация кода…');
-    const rawOutput = await tryGenerateWithRecovery(specWithTemplates, { apiKey, spinner });
-    const projPath = await saveProjectArtifacts(originalTask, specWithTemplates, rawOutput);
-    spinner.succeed('[ок] проект сгенерирован и сохранён: ' + projPath);
   } else {
-    // Без шаблонов продолжаем; рекомендацию логируем только в авто-режиме
-    if (mode === 'auto' && spec.template_suggestion && !explicitTemplates.length) {
-      await logMissingTemplate(spec.template_suggestion, spec, originalTask);
-      console.log(`[templates] рекомендован новый шаблон "${spec.template_suggestion}" — записан в requests.jsonl`);
+    renderHeader(); // Статичный заголовок для CLI режима
+  }
+
+  // Создаем многоэтапный спиннер
+  const stages = [
+    'Анализ и нормализация задачи',
+    'Подбор подходящих шаблонов',
+    'Применение шаблонов к спецификации',
+    'Генерация кода проекта',
+    'Сохранение файлов проекта'
+  ];
+  
+  const multiSpinner = new MultiStageSpinner(stages);
+  multiSpinner.start();
+
+  try {
+    // 1) Нормализация запроса (нейронка выбирает шаблоны)
+    setSpinnerText(multiSpinner.spinner, 'Анализируем вашу задачу с помощью ИИ...', 'ai');
+    const spec = await tryRefineWithRecovery(originalTask, { apiKey, spinner: multiSpinner.spinner });
+    multiSpinner.nextStage();
+
+    // 2) Вычисляем итоговый список шаблонов: приоритет — выбор режима
+    setSpinnerText(multiSpinner.spinner, 'Подбираем оптимальные шаблоны...', 'search');
+    const modelTemplates = Array.isArray(spec.templates) ? spec.templates : [];
+    const effectiveTemplates = (mode === 'manual')
+      ? explicitTemplates
+      : (mode === 'none')
+        ? []
+        : (modelTemplates.length ? modelTemplates : explicitTemplates);
+    
+    // Эвристика: авто-выбор web_landing_plain при запросе лендинга
+    const looksLikeLanding = (t) => {
+      const s = String(t || '').toLowerCase();
+      return /лендинг|landing|landing page|landing-page|homepage|промо|презентационный сайт|главная страница/i.test(s);
+    };
+    const wantLanding = looksLikeLanding(originalTask) || looksLikeLanding(spec?.title) || looksLikeLanding(spec?.overview);
+    if (mode === 'auto' && wantLanding && !effectiveTemplates.includes('web_landing_plain')) {
+      effectiveTemplates.push('web_landing_plain');
+      console.log('\n🎯 Автоматически выбран шаблон web_landing_plain для лендинга');
     }
-    stageUpdate(spinner, 'Генерация кода…');
-    const rawOutput = await tryGenerateWithRecovery(spec, { apiKey, spinner });
-    const projPath = await saveProjectArtifacts(originalTask, spec, rawOutput);
-    spinner.succeed('[ок] проект сгенерирован без шаблонов и сохранён: ' + projPath);
+
+    // Подбор по MemoryBank: добавить кандидатов по тегам
+    if (mode === 'auto') {
+      const memory = await loadMemoryBank();
+      const text = `${originalTask}\n${spec?.title || ''}\n${spec?.overview || ''}`;
+      const candidates = matchTemplatesByText(text, memory);
+      for (const c of candidates) {
+        const name = c.name;
+        if (!effectiveTemplates.includes(name)) {
+          effectiveTemplates.push(name);
+          console.log(`\n🔍 MemoryBank: добавлен шаблон ${name} по совпадению тегов`);
+        }
+      }
+    }
+
+    multiSpinner.nextStage();
+
+    // 3) Загружаем и применяем шаблоны; логируем отсутствие
+    setSpinnerText(multiSpinner.spinner, 'Загружаем и применяем шаблоны...', 'template');
+    const loaded = await loadTemplates(effectiveTemplates);
+    const loadedNames = new Set(loaded.map(t => t.name));
+    let missing = effectiveTemplates.filter(n => !loadedNames.has(n));
+
+    // Фолбэк: если YAML-шаблон отсутствует, пытаемся взять данные из MemoryBank
+    if (missing.length) {
+      const memory = await loadMemoryBank();
+      const looksLikePath = (s) => /[\\\/.]/.test(String(s || ''));
+      for (const miss of [...missing]) {
+        const memT = getTemplateByName(memory, miss);
+        if (memT) {
+          const data = {
+            description: memT.description || '',
+            rules: Array.isArray(memT.rules) ? memT.rules : [],
+            style: Array.isArray(memT.style) ? memT.style : [],
+            stack: Array.isArray(memT.stack) ? memT.stack : [],
+            // structure из MemoryBank может быть секциями; добавляем только похожие на пути
+            structure: (Array.isArray(memT.structure) ? memT.structure.filter(looksLikePath) : []),
+          };
+          loaded.push({ name: miss, filePath: 'MemoryBank', data });
+          loadedNames.add(miss);
+          console.log(`\n📋 Применены данные из MemoryBank для шаблона "${miss}"`);
+        }
+      }
+      // Обновляем список отсутствующих после фолбэка
+      missing = effectiveTemplates.filter(n => !loadedNames.has(n));
+    }
+
+    // Логируем оставшиеся отсутствующие
+    for (const miss of missing) {
+      await logMissingTemplate(miss, spec, originalTask);
+      console.log(`\n⚠️  Шаблон "${miss}" не найден — запрос записан в requests.jsonl`);
+    }
+
+    multiSpinner.nextStage();
+
+    if (loaded.length) {
+      const specWithTemplates = applyTemplatesToSpec(spec, loaded);
+      console.log(`\n✅ Применены шаблоны: ${loaded.map(t => t.name).join(', ')}`);
+      
+      setSpinnerText(multiSpinner.spinner, 'Генерируем код проекта...', 'generate');
+      const rawOutput = await tryGenerateWithRecovery(specWithTemplates, { apiKey, spinner: multiSpinner.spinner });
+      
+      multiSpinner.nextStage();
+      setSpinnerText(multiSpinner.spinner, 'Сохраняем файлы проекта...', 'save');
+      const projPath = await saveProjectArtifacts(originalTask, specWithTemplates, rawOutput);
+      
+      multiSpinner.complete('Проект успешно создан!');
+      
+      // Подсчитываем статистику
+      const stats = calculateProjectStats(projPath, loaded, startTime);
+
+      
+      // Показываем празднование
+      renderCelebration(
+        'Проект успешно создан!',
+        [
+          `Создано файлов: ${stats.filesCreated}`,
+          `Строк кода: ${stats.linesOfCode.toLocaleString()}`,
+          `Время генерации: ${Math.round(stats.duration / 1000)}с`,
+          `Сохранено в: ${projPath}`
+        ]
+      );
+      
+      // Показываем детальную статистику
+      renderProjectStats(stats);
+      
+      // Показываем полезные советы
+      const tips = [
+        'Проверьте README.md для инструкций по запуску',
+        'Установите зависимости командой npm install или pip install -r requirements.txt',
+        'Используйте git init для инициализации репозитория',
+        'Настройте переменные окружения в .env файле если требуется'
+      ];
+      
+      renderTips(tips.slice(0, 3));
+    } else {
+      // Без шаблонов продолжаем; рекомендацию логируем только в авто-режиме
+      if (mode === 'auto' && spec.template_suggestion && !explicitTemplates.length) {
+        await logMissingTemplate(spec.template_suggestion, spec, originalTask);
+        console.log(`\n💡 Рекомендован новый шаблон "${spec.template_suggestion}" — записан в requests.jsonl`);
+      }
+      
+      setSpinnerText(multiSpinner.spinner, 'Генерируем код без шаблонов...', 'generate');
+      const rawOutput = await tryGenerateWithRecovery(spec, { apiKey, spinner: multiSpinner.spinner });
+      
+      multiSpinner.nextStage();
+      setSpinnerText(multiSpinner.spinner, 'Сохраняем файлы проекта...', 'save');
+      const projPath = await saveProjectArtifacts(originalTask, spec, rawOutput);
+      
+      multiSpinner.complete('Проект создан без шаблонов!');
+      
+      // Подсчитываем статистику
+      const stats = calculateProjectStats(projPath, [], startTime);
+      
+      // Показываем празднование
+      renderCelebration(
+        'Проект создан без шаблонов!',
+        [
+          `Создано файлов: ${stats.filesCreated}`,
+          `Строк кода: ${stats.linesOfCode.toLocaleString()}`,
+          `Время генерации: ${Math.round(stats.duration / 1000)}с`,
+          `Сохранено в: ${projPath}`
+        ]
+      );
+      
+      // Показываем детальную статистику
+      renderProjectStats(stats);
+      
+      // Показываем полезные советы для проектов без шаблонов
+      const tips = [
+        'Проект создан с помощью чистой генерации ИИ',
+        'Рекомендуем добавить README.md с описанием проекта',
+        'Проверьте структуру проекта и добавьте недостающие файлы',
+        'Рассмотрите возможность использования шаблонов в будущем'
+      ];
+      
+      renderTips(tips.slice(0, 3));
+    }
+  } catch (err) {
+    multiSpinner.fail('Ошибка при создании проекта');
+    
+    // Определяем тип ошибки для более точной диагностики
+    const msg = String(err?.message || err);
+    const isApiError = /\b(401|429|403)\b/i.test(msg) || /api|key|auth/i.test(msg);
+    const isNetworkError = /network|timeout|ENOTFOUND|ECONNREFUSED/i.test(msg);
+    const isFileError = /ENOENT|EACCES|EPERM/i.test(msg);
+    const isTemplateError = /template|шаблон/i.test(msg);
+    
+    if (isApiError) {
+      renderError(
+        'Ошибка API OpenRouter',
+        [
+          '🔑 Проверьте API ключ в переменной OPENROUTER_API_KEY',
+          '💰 Убедитесь в наличии средств на балансе OpenRouter',
+          '🌐 Получите бесплатный ключ на https://openrouter.ai',
+          '📋 Проверьте правильность формата ключа (sk-or-...)'
+        ]
+      );
+    } else if (isNetworkError) {
+      renderError(
+        'Проблемы с сетевым подключением',
+        [
+          '🌐 Проверьте подключение к интернету',
+          '⏱️ Попробуйте повторить запрос через 30 секунд',
+          '🔒 Проверьте настройки прокси/VPN/брандмауэра',
+          '📡 Убедитесь в доступности api.openrouter.ai'
+        ]
+      );
+    } else if (isFileError) {
+      renderError(
+        'Ошибка файловой системы',
+        [
+          '📁 Проверьте права доступа к папке проекта',
+          '💾 Убедитесь в наличии свободного места на диске (>100MB)',
+          '🔐 Запустите терминал с правами администратора',
+          '📂 Проверьте корректность путей к файлам'
+        ]
+      );
+    } else if (isTemplateError) {
+      renderError(
+        'Ошибка шаблона проекта',
+        [
+          '🎯 Попробуйте выбрать другой шаблон',
+          '📝 Упростите описание задачи',
+          '🔄 Перезапустите с флагом --no-templates',
+          '📚 Проверьте список доступных шаблонов'
+        ]
+      );
+    } else {
+      renderError(
+        'Неожиданная ошибка при создании проекта',
+        [
+          '🔄 Попробуйте перезапустить приложение',
+          '📝 Упростите или переформулируйте задачу',
+          '🛠️ Проверьте корректность входных параметров',
+          '📖 Обратитесь к документации: README.md'
+        ]
+      );
+    }
+    
+    console.error('\n🔍 Детали ошибки:', err.message);
+    console.error('📊 Для диагностики запустите: npm start -- --help');
+    process.exit(1);
   }
 }
 
 main().catch(err => {
-  console.error(err);
+  console.log('\n');
+  
+  // Расширенная диагностика ошибок с цветовым кодированием
+  const msg = String(err?.message || err);
+  const isApiError = /\b(401|429|403)\b/i.test(msg) || /api|key|auth/i.test(msg);
+  const isNetworkError = /network|timeout|ENOTFOUND|ECONNREFUSED/i.test(msg);
+  const isFileError = /ENOENT|EACCES|EPERM/i.test(msg);
+  const isValidationError = /validation|валидация/i.test(msg);
+  const isRateLimitError = /429|rate.?limit|слишком.?много/i.test(msg);
+  
+  if (isRateLimitError) {
+    renderError(
+      'Превышен лимит запросов API',
+      [
+        '⏰ Подождите 60 секунд перед следующим запросом',
+        '💎 Рассмотрите возможность обновления тарифа OpenRouter',
+        '🔄 Попробуйте использовать другую модель ИИ',
+        '📊 Проверьте статистику использования на openrouter.ai'
+      ]
+    );
+  } else if (isValidationError) {
+    renderError(
+      'Ошибка валидации входных данных',
+      [
+        '📝 Проверьте корректность описания задачи (3-1000 символов)',
+        '🔑 Убедитесь в наличии API ключа OpenRouter',
+        '📋 Используйте команду --help для справки',
+        '💡 Пример: npm start -- --prompt "Создай React приложение"'
+      ]
+    );
+  } else if (isApiError) {
+    renderError(
+      'Критическая ошибка API',
+      [
+        '🔑 Проверьте API ключ: export OPENROUTER_API_KEY="sk-or-..."',
+        '💰 Проверьте баланс на https://openrouter.ai/account',
+        '🔄 Попробуйте создать новый API ключ',
+        '📞 Обратитесь в поддержку OpenRouter при необходимости'
+      ]
+    );
+  } else if (isNetworkError) {
+    renderError(
+      'Критическая сетевая ошибка',
+      [
+        '🌐 Проверьте стабильность интернет-соединения',
+        '🔒 Временно отключите VPN/прокси',
+        '🛡️ Проверьте настройки брандмауэра',
+        '📡 Убедитесь в доступности внешних API'
+      ]
+    );
+  } else if (isFileError) {
+    renderError(
+      'Критическая ошибка файловой системы',
+      [
+        '👑 Запустите терминал с правами администратора',
+        '📁 Проверьте права доступа: chmod 755 ./projects',
+        '💾 Освободите место на диске (требуется >500MB)',
+        '🔧 Проверьте целостность файловой системы'
+      ]
+    );
+  } else {
+    renderError(
+      'Неизвестная критическая ошибка',
+      [
+        '🔄 Перезапустите приложение и терминал',
+        '🧹 Очистите кэш: rm -rf node_modules && npm install',
+        '📋 Проверьте версию Node.js: node --version (требуется >=16)',
+        '🆘 Создайте issue на GitHub: github.com/SkvorikovCode/torexxx-agent'
+      ]
+    );
+  }
+  
+  console.error('\n🔍 Полная информация об ошибке:');
+  console.error('📄 Сообщение:', err.message || 'Неизвестная ошибка');
+  console.error('📊 Стек вызовов:', err.stack?.split('\n').slice(0, 3).join('\n') || 'Недоступен');
+  console.error('\n💡 Для получения помощи запустите: npm start -- --help');
   process.exit(1);
 });
