@@ -1,0 +1,46 @@
+template:
+  name: vue_app
+  description: "Современное Vue.js приложение с Vite, TypeScript, Pinia и Vue Router."
+  stack:
+  - vue3
+  - vite
+  - typescript
+  - pinia (state management)
+  - vue-router
+  - tailwindcss
+  - vitest (testing)
+  - eslint
+  - prettier
+  structure:
+  - "src/main.ts — точка входа приложения"
+  - "src/App.vue — корневой компонент"
+  - "src/components/ — переиспользуемые компоненты"
+  - "src/views/ — страницы приложения"
+  - "src/stores/ — Pinia stores для управления состоянием"
+  - "src/router/ — настройка Vue Router"
+  - "src/composables/ — переиспользуемая логика"
+  - "src/types/ — TypeScript типы"
+  - "src/assets/ — статические ресурсы"
+  - "public/ — публичные файлы"
+  - "tests/ — тесты компонентов"
+  - "vite.config.ts — конфигурация Vite"
+  - "tailwind.config.js — настройки Tailwind"
+  - "package.json — зависимости и скрипты"
+  rules:
+  - "Использовать Composition API с <script setup>"
+  - "Типизировать все props, emits и reactive данные"
+  - "Создавать переиспользуемые composables для бизнес-логики"
+  - "Использовать Pinia для глобального состояния"
+  - "Настроить роутинг с lazy loading компонентов"
+  - "Добавить ESLint и Prettier для качества кода"
+  - "Покрыть ключевые компоненты тестами"
+  style:
+  - "Использовать Tailwind CSS для стилизации"
+  - "Следовать Vue Style Guide"
+  - "Создавать атомарные компоненты"
+  - "Использовать семантические HTML теги"
+  example_prompt: |
+    Создай Vue.js приложение для управления задачами (todo-app).
+    Должны быть страницы: список задач, создание задачи, профиль пользователя.
+    Используй Pinia для состояния, Vue Router для навигации, TypeScript для типизации.
+    Добавь компоненты: TaskCard, TaskForm, UserProfile.
